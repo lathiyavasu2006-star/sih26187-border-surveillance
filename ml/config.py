@@ -79,6 +79,20 @@ class MLConfig:
     half_precision: bool = field(default_factory=lambda: _env_bool("ML_HALF_PRECISION", True))
     detect_animals: bool = field(default_factory=lambda: _env_bool("ML_DETECT_ANIMALS", True))
     detect_weapons: bool = field(default_factory=lambda: _env_bool("ML_DETECT_WEAPONS", True))
+
+    # ---- weapon model (second stage, ml/weapons.py). COCO has no firearm class, so a model trained on
+    # weapons runs over the area around each tracked person. Missing weights simply leave it switched off.
+    weapon_model_enabled: bool = field(default_factory=lambda: _env_bool("ML_WEAPON_MODEL_ENABLED", True))
+    weapon_model_name: str = field(default_factory=lambda: _env("ML_WEAPON_MODEL", "weapon_yolov8s.pt"))
+    weapon_model_path: str = ""
+    weapon_model_sha256: Optional[str] = field(default_factory=lambda: _env("ML_WEAPON_MODEL_SHA256"))
+    weapon_conf: float = field(default_factory=lambda: _env_float("ML_WEAPON_CONF", 0.35))
+    weapon_image_size: int = field(default_factory=lambda: _env_int("ML_WEAPON_IMAGE_SIZE", 448))
+    #: How far past the person box to look: a weapon is usually held out at arm's length.
+    weapon_crop_padding: float = field(default_factory=lambda: _env_float("ML_WEAPON_CROP_PADDING", 0.35))
+    weapon_max_crops: int = field(default_factory=lambda: _env_int("ML_WEAPON_MAX_CROPS", 6))
+    #: Live throttle: checking every second frame keeps the main pipeline at full speed.
+    weapon_every_n_frames: int = field(default_factory=lambda: _env_int("ML_WEAPON_EVERY_N_FRAMES", 2))
     target_classes: List[int] = field(default_factory=list)
     class_names: Dict[int, str] = field(default_factory=dict)
 
@@ -152,6 +166,7 @@ class MLConfig:
     def __post_init__(self):
         self.model_path = str(Path(self.models_path) / self.model_name).replace("\\", "/")
         self.engine_path = str(Path(self.model_path).with_suffix(".engine")).replace("\\", "/")
+        self.weapon_model_path = str(Path(self.models_path) / self.weapon_model_name).replace("\\", "/")
         self.class_names = {**PERSON_CLASSES, **{k: v for k, v in VEHICLE_CLASSES.items() if k != 1}}
         if self.detect_animals:
             self.class_names.update(ANIMAL_CLASSES)

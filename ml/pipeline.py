@@ -20,6 +20,7 @@ import cv2
 import numpy as np
 
 from ml.analyzer import FrameAnalysis, FrameAnalyzer, split_weapons, to_ws_alert, to_ws_detection
+from ml.weapons import weapon_detector
 from ml.annotator import annotator
 from ml.backend_client import BackendClient, backend_client
 from ml.camera_stream import CameraStream
@@ -197,6 +198,7 @@ class Pipeline:
         if ml_config.reid_enabled:
             tracked = self.identity.resolve(enhanced, tracked)  # stable ids for returning people
         self.memory.mark_missing_as_lost({d["track_id"] for d in tracked}, now=now)
+        weapons += await self._weapons_near_people(enhanced, tracked)
 
         analysis = self.analyzer.analyze(tracked, weapons, self.zones, now=now)
         self.last_analysis = analysis
@@ -221,6 +223,18 @@ class Pipeline:
             self._log_status(analysis)
             self._last_status_log = mono
         return analysis
+
+    async def _weapons_near_people(self, frame, tracked) -> list:
+        """Weapon-model pass over the people in this frame (throttled: a weapon does not appear for one frame)."""
+        if not ml_config.weapon_model_enabled:
+            return []
+        every = max(1, ml_config.weapon_every_n_frames)
+        if self.frames_processed % every:
+            return []
+        people = [det for det in tracked if ml_config.is_person(det.get("cls_name", ""))]
+        if not people:
+            return []
+        return await asyncio.to_thread(weapon_detector.detect, frame, people)
 
     def _update_fps(self, mono: float) -> None:
         self.fps_counter += 1

@@ -23,6 +23,7 @@ from ml.fence import FenceChecker, fence_checker as shared_fence_checker
 from ml.night import night_enhancer
 from ml.identity import IdentityResolver
 from ml.tracker import ByteTracker
+from ml.weapons import weapon_detector
 
 logger = logging.getLogger("sih26187.ml.video_upload")
 
@@ -105,6 +106,11 @@ class VideoUploadProcessor:
                 if ml_config.reid_enabled:
                     tracked = identity.resolve(enhanced, tracked)
                 memory.mark_missing_as_lost({d["track_id"] for d in tracked}, now=now)
+                # Offline analysis checks every processed frame: there is no live budget to protect.
+                if ml_config.weapon_model_enabled:
+                    people = [det for det in tracked if ml_config.is_person(det.get("cls_name", ""))]
+                    if people:
+                        weapons += await asyncio.to_thread(weapon_detector.detect, enhanced, people)
                 analysis = analyzer.analyze(tracked, weapons, zones, now=now)
                 result["frames_processed"] += 1
 
