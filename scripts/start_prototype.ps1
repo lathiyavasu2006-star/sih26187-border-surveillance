@@ -44,12 +44,39 @@ function Test-Port($portNumber) {
     }
 }
 
-# Kills a service and everything it spawned (npm/node and python child processes).
+# Process ids of everything this process spawned, deepest first (children must die before their parent).
+function Get-Descendants($processId) {
+    $children = @(Get-CimInstance Win32_Process -Filter "ParentProcessId = $processId" -ErrorAction SilentlyContinue)
+    foreach ($child in $children) {
+        Get-Descendants $child.ProcessId
+        $child.ProcessId
+    }
+}
+
+# After a reboot Windows reuses process ids, so a stale id in the pid file could point at something else.
+# Only our own services are ever killed.
+function Is-OurService($processId) {
+    $process = Get-CimInstance Win32_Process -Filter "ProcessId = $processId" -ErrorAction SilentlyContinue
+    if (-not $process) { return $false }
+    return ($process.CommandLine -match 'uvicorn backend\.main|ml\.main|vite') -or ($process.Name -in @('python.exe', 'node.exe'))
+}
+
+# Stops a service and everything it spawned. taskkill is deliberately not used: it writes to stderr for
+# children that have already exited, which PowerShell turns into a terminating error and aborts the launcher.
 function Stop-Tree($processId, $label) {
     if (-not $processId) { return }
-    $running = Get-Process -Id $processId -ErrorAction SilentlyContinue
-    if (-not $running) { return }
-    & taskkill.exe /PID $processId /T /F 2>&1 | Out-Null
+    if (-not (Get-Process -Id $processId -ErrorAction SilentlyContinue)) { return }
+    if (-not (Is-OurService $processId)) {
+        Write-Warn "pid $processId is no longer the $label process - leaving it alone"
+        return
+    }
+    foreach ($id in @(Get-Descendants $processId) + @($processId)) {
+        try {
+            Stop-Process -Id $id -Force -ErrorAction Stop
+        } catch {
+            # Already gone, or protected: neither is a reason to stop the launcher.
+        }
+    }
     Write-Step "stopped $label (pid $processId)"
 }
 
@@ -58,7 +85,13 @@ function Stop-Everything {
         Write-Warn 'Nothing was started by this launcher.'
         return
     }
-    $saved = Get-Content $pidFile -Raw | ConvertFrom-Json
+    try {
+        $saved = Get-Content $pidFile -Raw | ConvertFrom-Json
+    } catch {
+        Write-Warn 'The saved process list is unreadable - ignoring it.'
+        Remove-Item $pidFile -Force -ErrorAction SilentlyContinue
+        return
+    }
     foreach ($name in 'ml', 'frontend', 'backend') {
         Stop-Tree $saved.$name $name
     }
