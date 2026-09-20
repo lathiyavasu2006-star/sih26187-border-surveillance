@@ -5,7 +5,7 @@ import { MapContainer, Rectangle, ScaleControl, TileLayer, useMap } from 'react-
 import { GeoFences } from '@/components/map/GeoFences'
 import { HeatLayer } from '@/components/map/HeatLayer'
 import { CameraMarker, ThreatMarker } from '@/components/map/ThreatMarker'
-import { MAP_STYLE_DEFINITIONS } from '@/components/map/mapStyles'
+import { HYBRID_OVERLAY, MAP_STYLE_DEFINITIONS } from '@/components/map/mapStyles'
 import { INDIA_BOUNDS, INDIA_CENTER } from '@/lib/constants'
 import { CAMERA_FOCUS_ZOOM, heatPoints } from '@/lib/mapData'
 import { cn } from '@/lib/utils'
@@ -121,6 +121,9 @@ export function IndiaMap({
           {...(definition.subdomains ? { subdomains: definition.subdomains } : {})}
           {...(definition.className ? { className: definition.className } : {})}
         />
+        {mapStyle === 'hybrid' ? (
+          <TileLayer url={HYBRID_OVERLAY.url} attribution={HYBRID_OVERLAY.attribution} maxZoom={HYBRID_OVERLAY.maxZoom} />
+        ) : null}
         <Rectangle bounds={INDIA_BOUNDS} pathOptions={{ color: definition.dark ? '#22d3ee' : '#0e7490', weight: 1, dashArray: '6 6', fill: false, opacity: 0.5 }} />
         {heat.length ? <HeatLayer points={heat} /> : null}
         {fencedCameras.length ? <GeoFences cameras={fencedCameras} /> : null}

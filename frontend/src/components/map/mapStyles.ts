@@ -11,6 +11,13 @@ export interface MapStyleDefinition {
   dark: boolean
 }
 
+/** Transparent label layer drawn over satellite imagery for the Hybrid style. */
+export const HYBRID_OVERLAY = {
+  url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+  attribution: 'Labels &copy; Esri',
+  maxZoom: 19,
+}
+
 export const MAP_STYLE_DEFINITIONS: Record<MapStyle, MapStyleDefinition> = {
   standard: {
     label: 'Standard',
@@ -28,6 +35,22 @@ export const MAP_STYLE_DEFINITIONS: Record<MapStyle, MapStyleDefinition> = {
     subdomains: 'abc',
     maxZoom: 19,
     dark: false,
+  },
+  topographic: {
+    label: 'Topographic',
+    // Relief shading with roads and place names — the terrain reading used for border sector planning.
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri — Esri, DeLorme, NAVTEQ, TomTom, Intermap, USGS, iPC',
+    maxZoom: 19,
+    dark: false,
+  },
+  hybrid: {
+    label: 'Hybrid',
+    // Satellite imagery with the road and boundary labels drawn on top (see HYBRID_OVERLAY).
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Tiles &copy; Esri — Source: Esri, Maxar, Earthstar Geographics',
+    maxZoom: 19,
+    dark: true,
   },
   light: {
     label: 'Light',

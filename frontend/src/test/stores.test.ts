@@ -51,10 +51,10 @@ describe('uiStore', () => {
     useUiStore.setState({ tabs: [{ path: '/dashboard', title: 'Dashboard' }], mapStyle: 'standard', sidebarMode: 'collapsed' })
   })
 
-  it('cycles through all seven map styles (including Street) and wraps', () => {
-    expect(MAP_STYLES).toHaveLength(7)
+  it('cycles through every map style (Street, Topographic and Hybrid included) and wraps', () => {
+    expect(MAP_STYLES).toHaveLength(9)
     const seen = MAP_STYLES.map(() => useUiStore.getState().cycleMapStyle())
-    expect(seen).toEqual(['street', 'light', 'dark', 'satellite', 'terrain', 'tactical', 'standard'])
+    expect(seen).toEqual(['street', 'topographic', 'hybrid', 'light', 'dark', 'satellite', 'terrain', 'tactical', 'standard'])
   })
 
   it('defaults auto-lock to 5 minutes and migrates the old 10-minute default', async () => {

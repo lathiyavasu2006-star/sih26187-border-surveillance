@@ -1,4 +1,4 @@
-import { Hexagon, LocateFixed, X } from 'lucide-react'
+import { Compass, Hexagon, LocateFixed, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Button, StatusDot } from '@/components/ui/primitives'
 import { useCameraZones } from '@/hooks/useData'
@@ -12,10 +12,12 @@ export function FocusedCameraPanel({
   camera,
   onClose,
   onLocate,
+  onStreetView,
 }: {
   camera: CameraWithAlertCount
   onClose: () => void
   onLocate?: () => void
+  onStreetView?: () => void
 }) {
   const navigate = useNavigate()
   const selectCamera = useUiStore((state) => state.selectCamera)
@@ -44,6 +46,11 @@ export function FocusedCameraPanel({
           <p className="font-mono text-[11px] text-slate-700">
             {camera.gps_lat?.toFixed(6)}, {camera.gps_lng?.toFixed(6)}
           </p>
+          {onStreetView ? (
+            <Button size="xs" variant="hud" icon={<Compass className="size-3.5" />} onClick={onStreetView} data-testid="focus-street-view">
+              Street view here
+            </Button>
+          ) : null}
           <div>
             <p className="mb-1 text-[10px] font-semibold uppercase tracking-wider text-muted">Geo-fence perimeters</p>
             {GEOFENCE_RINGS.map((ring) => (

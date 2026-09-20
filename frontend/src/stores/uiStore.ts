@@ -25,7 +25,7 @@ export interface SelectedTrack {
   detection: WSDetection | null
 }
 
-export const MAP_STYLES = ['standard', 'street', 'light', 'dark', 'satellite', 'terrain', 'tactical'] as const
+export const MAP_STYLES = ['standard', 'street', 'topographic', 'hybrid', 'light', 'dark', 'satellite', 'terrain', 'tactical'] as const
 export type MapStyle = (typeof MAP_STYLES)[number]
 
 export const DEFAULT_AUTO_LOCK_MINUTES = 5

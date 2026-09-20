@@ -1,12 +1,13 @@
-import type { Map as LeafletMap } from 'leaflet'
-import { Flame, LocateFixed, MapPinOff, Map as MapIcon, ShieldAlert } from 'lucide-react'
-import { useCallback, useMemo, useRef, useState } from 'react'
+import type { LeafletMouseEvent, Map as LeafletMap } from 'leaflet'
+import { Compass, Flame, LocateFixed, MapPinOff, Map as MapIcon, ShieldAlert } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { mergeAlerts } from '@/lib/alerts'
 import { LocateCameraDialog } from '@/components/camera/LocateCameraDialog'
 import { FocusedCameraPanel } from '@/components/map/FocusedCameraPanel'
 import { IndiaMap } from '@/components/map/IndiaMap'
+import { PanoramaView } from '@/components/map/PanoramaView'
 import { BORDER_REGIONS, GEOFENCE_RINGS, type BorderRegion } from '@/lib/mapData'
 import { MAP_STYLE_DEFINITIONS } from '@/components/map/mapStyles'
 import { Badge, Button, Card, CardHeader, PageHeader, RiskBadge, Select, StatusDot, Switch } from '@/components/ui/primitives'
@@ -18,6 +19,7 @@ import { formatRelative, titleCase } from '@/lib/utils'
 import { usePermissions } from '@/stores/authStore'
 import { useLiveStore } from '@/stores/liveStore'
 import { useUiStore } from '@/stores/uiStore'
+import type { PanoramaLocation } from '@/lib/panorama'
 import type { CameraWithAlertCount, RiskLevel } from '@/types'
 
 export function MapViewPage() {
@@ -36,10 +38,28 @@ export function MapViewPage() {
   const focusId = searchParams.get('focus')?.toUpperCase() || null
   const [allFences, setAllFences] = useState(false)
   const [locating, setLocating] = useState<CameraWithAlertCount | null>(null)
+  const [streetMode, setStreetMode] = useState(false)
+  const [panorama, setPanorama] = useState<PanoramaLocation | null>(null)
   const mapRef = useRef<LeafletMap | null>(null)
+  const [mapInstance, setMapInstance] = useState<LeafletMap | null>(null)
   const onMapReady = useCallback((map: LeafletMap | null) => {
     mapRef.current = map
+    setMapInstance(map)
   }, [])
+
+  // Street-view mode: the next click on the map is the point to look around from.
+  useEffect(() => {
+    if (!mapInstance || !streetMode) return undefined
+    const container = mapInstance.getContainer()
+    const previousCursor = container.style.cursor
+    container.style.cursor = 'crosshair'
+    const onClick = (event: LeafletMouseEvent) => setPanorama({ lat: Number(event.latlng.lat.toFixed(6)), lng: Number(event.latlng.lng.toFixed(6)) })
+    mapInstance.on('click', onClick)
+    return () => {
+      mapInstance.off('click', onClick)
+      container.style.cursor = previousCursor
+    }
+  }, [mapInstance, streetMode])
 
   const showRegion = (region: BorderRegion) => {
     mapRef.current?.flyToBounds(BORDER_REGIONS[region].bounds, { padding: [24, 24], duration: 0.8 })
@@ -58,6 +78,12 @@ export function MapViewPage() {
       return !value
     })
   }
+  const toggleStreetMode = () => {
+    setStreetMode((value) => {
+      if (!value) toast('Click anywhere on the map to look around from there', { id: 'street', duration: 2500, icon: '🧭' })
+      return !value
+    })
+  }
   const clearFocus = () => {
     const next = new URLSearchParams(searchParams)
     next.delete('focus')
@@ -66,6 +92,7 @@ export function MapViewPage() {
 
   useKeyboard({
     v: toggleFences,
+    y: toggleStreetMode,
     m: () => toast(`Map style: ${MAP_STYLE_DEFINITIONS[cycleMapStyle()].label}`, { id: 'map-style', duration: 1500 }),
     h: toggleHeatmap,
     g: () => mapRef.current?.flyToBounds(INDIA_BOUNDS, { padding: [12, 12], duration: 0.8 }),
@@ -97,7 +124,7 @@ export function MapViewPage() {
       <PageHeader
         icon={<MapIcon className="size-4" />}
         title="Threat Map"
-        subtitle={`Style: ${MAP_STYLE_DEFINITIONS[mapStyle].label} · M styles · H heatmap · V fences · G India · N/E/W/S regions · +/− zoom`}
+        subtitle={`Style: ${MAP_STYLE_DEFINITIONS[mapStyle].label} · M styles · H heatmap · V fences · Y street view · G India · N/E/W/S regions · +/− zoom`}
         actions={
           <>
             <div className="flex items-center gap-1 rounded-lg border border-line bg-white p-1" role="group" aria-label="Border regions">
@@ -123,6 +150,9 @@ export function MapViewPage() {
             </div>
             <Button size="sm" variant={heatmap ? 'primary' : 'secondary'} icon={<Flame className="size-3.5" />} onClick={toggleHeatmap} aria-pressed={heatmap} data-testid="heatmap-toggle">
               Heatmap <kbd className="kbd">H</kbd>
+            </Button>
+            <Button size="sm" variant={streetMode ? 'primary' : 'secondary'} icon={<Compass className="size-3.5" />} onClick={toggleStreetMode} aria-pressed={streetMode} data-testid="street-view-toggle">
+              Street view <kbd className="kbd">Y</kbd>
             </Button>
             <Button size="sm" variant={allFences ? 'primary' : 'secondary'} icon={<ShieldAlert className="size-3.5" />} onClick={toggleFences} aria-pressed={allFences} data-testid="fences-toggle">
               Fences <kbd className="kbd">V</kbd>
@@ -152,10 +182,20 @@ export function MapViewPage() {
             onMapReady={onMapReady}
           />
           {focusedCamera ? (
-            <FocusedCameraPanel camera={focusedCamera} onClose={clearFocus} onLocate={canManageCameras ? () => setLocating(focusedCamera) : undefined} />
+            <FocusedCameraPanel
+              camera={focusedCamera}
+              onClose={clearFocus}
+              onLocate={canManageCameras ? () => setLocating(focusedCamera) : undefined}
+              onStreetView={
+                focusedCamera.gps_lat !== null && focusedCamera.gps_lng !== null
+                  ? () => setPanorama({ lat: focusedCamera.gps_lat ?? 0, lng: focusedCamera.gps_lng ?? 0, label: focusedCamera.camera_id })
+                  : undefined
+              }
+            />
           ) : null}
         </Card>
         <div className="flex min-h-0 flex-col gap-3">
+          {panorama ? <PanoramaView location={panorama} onClose={() => setPanorama(null)} className="h-80 shrink-0" /> : null}
           <Card>
             <CardHeader title="Legend" />
             <div className="space-y-1.5 p-3 text-xs">
