@@ -1,0 +1,2194 @@
+{
+  "info": {
+    "_postman_id": "7f456709-8c92-5c6d-b1c7-e8a231b7a241",
+    "name": "SIH26187 Border Surveillance API",
+    "description": "Ministry of Home Affairs / SSB AI border surveillance backend (Week 2).\n\nRun Auth > Login first: it stores access_token and refresh_token as variables that every other request uses. Access tokens expire after 15 minutes; use Auth > Refresh access token.\n\nRoles: admin > regional_head > supervisor > operator. Delete operations are admin only.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "if (!pm.collectionVariables.get(\"base_url\")) {",
+          "    pm.collectionVariables.set(\"base_url\", \"http://localhost:8000\");",
+          "}"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "camera_id",
+      "value": "CAM-N-001",
+      "type": "string"
+    },
+    {
+      "key": "alert_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "evidence_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "zone_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "hardware_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "track_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "analysis_job_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "System",
+      "description": "Unauthenticated service endpoints used by monitoring.",
+      "item": [
+        {
+          "name": "Root / system info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": []
+            },
+            "description": "Service name, version and environment.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Successful response\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Ping (database check)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/ping",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "ping"
+              ]
+            },
+            "description": "Liveness plus a real SELECT 1 against PostgreSQL.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Successful response\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ]
+            },
+            "description": "healthy / degraded / down, including camera monitor state. Used by uptime monitoring.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Successful response\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "description": "JWT login, refresh, profile, logout and password change. All rate limited.",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/auth/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "login"
+              ]
+            },
+            "description": "OAuth2 password form. Saves access_token and refresh_token into the environment. Three wrong passwords lock the account for 30 minutes.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "urlencoded",
+              "urlencoded": [
+                {
+                  "key": "username",
+                  "value": "admin",
+                  "type": "text"
+                },
+                {
+                  "key": "password",
+                  "value": "Admin@SIH2024",
+                  "type": "text"
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Login succeeded\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test(\"Save tokens\", function () {",
+                  "    var json = pm.response.json();",
+                  "    pm.environment.set(\"token\", json.access_token);",
+                  "    pm.environment.set(\"refresh_token\", json.refresh_token);",
+                  "    pm.collectionVariables.set(\"token\", json.access_token);",
+                  "    pm.collectionVariables.set(\"refresh_token\", json.refresh_token);",
+                  "    pm.expect(json.token_type).to.eql(\"bearer\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Refresh access token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/refresh",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "refresh"
+              ]
+            },
+            "description": "Exchange the refresh token for a new 15 minute access token.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Refreshed access token\", function () {",
+                  "    pm.response.to.have.status(200);",
+                  "    var json = pm.response.json();",
+                  "    pm.environment.set(\"token\", json.access_token);",
+                  "    pm.collectionVariables.set(\"token\", json.access_token);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Me (profile)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/me",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "me"
+              ]
+            },
+            "description": "Current user. Never contains password_hash."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"No secrets in response\", function () {",
+                  "    var body = pm.response.text();",
+                  "    pm.expect(body).to.not.include(\"password_hash\");",
+                  "    pm.expect(body.toLowerCase()).to.not.include(\"hikvision123\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Change password",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/change-password",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "change-password"
+              ]
+            },
+            "description": "Requires the current password. New password: 12+ chars with upper, lower, digit and symbol.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"current_password\": \"Admin@SIH2024\",\n  \"new_password\": \"Border#Secure2026\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/auth/logout",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "logout"
+              ]
+            },
+            "description": "Audits the logout and revokes the token when JWT_BLACKLIST_ENABLED=True.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Successful response\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Cameras",
+      "description": "Camera registration, listing, status and stream testing.",
+      "item": [
+        {
+          "name": "Register camera",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cameras/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cameras",
+                "register"
+              ]
+            },
+            "description": "Supervisor or above. The server generates camera_id (CAM-N-001 style) and probes the stream; a camera whose stream cannot be verified is saved as degraded.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"North Fence Tower 1\",\n  \"location_name\": \"Raxaul Sector Post 4\",\n  \"gps_lat\": 26.98123456,\n  \"gps_lng\": 84.85123456,\n  \"rtsp_url\": \"rtsp://10.0.0.21:554/stream1\",\n  \"device_id\": null,\n  \"camera_type\": \"standard\",\n  \"zone_region\": \"north\",\n  \"sector_name\": \"Raxaul\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Camera registered\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    var json = pm.response.json();",
+                  "    pm.environment.set(\"camera_id\", json.camera_id);",
+                  "    pm.collectionVariables.set(\"camera_id\", json.camera_id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List cameras",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cameras?skip=0&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cameras"
+              ],
+              "query": [
+                {
+                  "key": "zone_region",
+                  "value": "north",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "online",
+                  "disabled": true
+                },
+                {
+                  "key": "camera_type",
+                  "value": "standard",
+                  "disabled": true
+                },
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "Cameras with the most unacknowledged alerts first. Non-admins see only their granted cameras/regions."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Successful response\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Host location",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cameras/host-location",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cameras",
+                "host-location"
+              ],
+              "query": [
+                {
+                  "key": "refresh",
+                  "value": "false",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Supervisor or above. Position of the console host from the Windows location service, used to locate cameras attached to this machine when the browser has no geolocation. 503 with the reason when location is off. Cached for a minute (refresh=true bypasses). Audited as READ_HOST_LOCATION."
+          },
+          "response": []
+        },
+        {
+          "name": "Get camera",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cameras/{{camera_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cameras",
+                "{{camera_id}}"
+              ]
+            },
+            "description": "Camera detail with live viewer count and the last 5 alerts."
+          },
+          "response": []
+        },
+        {
+          "name": "Set camera status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cameras/{{camera_id}}/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cameras",
+                "{{camera_id}}",
+                "status"
+              ]
+            },
+            "description": "Supervisor or above. Setting offline raises a camera_offline alert and notifies every operator.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"offline\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Edit camera",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cameras/{{camera_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cameras",
+                "{{camera_id}}"
+              ]
+            },
+            "description": "Supervisor or above. Edits name, location, GPS, sector, type or region. Only the fields sent change; gps_lat and gps_lng must be sent together (null clears both). Audited as EDIT_CAMERA.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gps_lat\": 32.7266,\n  \"gps_lng\": 74.857,\n  \"location_name\": \"J&K Border - Sector 7\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Test camera stream",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cameras/{{camera_id}}/test",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cameras",
+                "{{camera_id}}",
+                "test"
+              ]
+            },
+            "description": "Supervisor or above. Opens the stream, measures FPS and returns a base64 JPEG preview."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete camera",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cameras/{{camera_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cameras",
+                "{{camera_id}}"
+              ]
+            },
+            "description": "Admin only. Refused with 409 when evidence exists; decommissioned (soft) when alerts/events exist."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Alerts",
+      "description": "Alert triage: list, inspect, acknowledge, statistics and deletion.",
+      "item": [
+        {
+          "name": "List alerts",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/alerts?skip=0&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "alerts"
+              ],
+              "query": [
+                {
+                  "key": "camera_id",
+                  "value": "{{camera_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "alert_type",
+                  "value": "intrusion",
+                  "disabled": true
+                },
+                {
+                  "key": "risk_level",
+                  "value": "critical",
+                  "disabled": true
+                },
+                {
+                  "key": "acknowledged",
+                  "value": "false",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "2026-09-01T00:00:00Z",
+                  "disabled": true
+                },
+                {
+                  "key": "date_to",
+                  "value": "2026-12-31T23:59:59Z",
+                  "disabled": true
+                },
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "Unacknowledged first, then newest first."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Successful response\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Alert statistics",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/alerts/stats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "alerts",
+                "stats"
+              ]
+            },
+            "description": "Totals for today plus breakdowns by type, risk level, camera and hour (IST)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Successful response\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Clear test data",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/alerts/clear-test-data",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "alerts",
+                "clear-test-data"
+              ]
+            },
+            "description": "Admin only. Acknowledges every unacknowledged alert raised before today (IST) as a false alarm noted as test data. Nothing is deleted: evidence references alerts."
+          },
+          "response": []
+        },
+        {
+          "name": "Get alert",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/alerts/{{alert_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "alerts",
+                "{{alert_id}}"
+              ]
+            },
+            "description": "Full alert record including risk reasons."
+          },
+          "response": []
+        },
+        {
+          "name": "Acknowledge alert",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/alerts/{{alert_id}}/acknowledge",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "alerts",
+                "{{alert_id}}",
+                "acknowledge"
+              ]
+            },
+            "description": "Operator or above. acknowledged_by must be your own user_id unless you are admin. Broadcasts alert_acknowledged over WebSocket.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"acknowledged_by\": \"{{user_id}}\",\n  \"false_alarm\": false,\n  \"notes\": \"Patrol dispatched, verified as a stray animal\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete alert",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/alerts/{{alert_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "alerts",
+                "{{alert_id}}"
+              ]
+            },
+            "description": "Admin only. Refused with 409 when evidence is attached."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "description": "Track history and movement timelines.",
+      "item": [
+        {
+          "name": "Active tracks",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/events/active?limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "active"
+              ],
+              "query": [
+                {
+                  "key": "camera_id",
+                  "value": "{{camera_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "Everything currently on camera (is_active=true)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Successful response\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List events",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/events?skip=0&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events"
+              ],
+              "query": [
+                {
+                  "key": "camera_id",
+                  "value": "{{camera_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "object_class",
+                  "value": "person",
+                  "disabled": true
+                },
+                {
+                  "key": "is_active",
+                  "value": "false",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "2026-09-01T00:00:00Z",
+                  "disabled": true
+                },
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "Filterable event history, newest first."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Successful response\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Track history",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/events/{{track_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "{{track_id}}"
+              ],
+              "query": [
+                {
+                  "key": "camera_id",
+                  "value": "{{camera_id}}",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Every event for one track id, with totals. Add camera_id because track ids repeat per camera."
+          },
+          "response": []
+        },
+        {
+          "name": "Track timeline",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/events/{{track_id}}/timeline",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "events",
+                "{{track_id}}",
+                "timeline"
+              ],
+              "query": [
+                {
+                  "key": "camera_id",
+                  "value": "{{camera_id}}",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Ordered positions with zone and risk at each point, from tracked_objects."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Evidence",
+      "description": "Chain of custody: upload, verify, archive, delete.",
+      "item": [
+        {
+          "name": "Upload evidence",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evidence/upload",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "evidence",
+                "upload"
+              ]
+            },
+            "description": "Supervisor or above. Multipart upload, max 500 MB. The SHA-256 is computed while the bytes are streamed to disk and the magic bytes must match the extension.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "MP4/AVI/MOV/MKV or JPG/JPEG/PNG"
+                },
+                {
+                  "key": "camera_id",
+                  "value": "{{camera_id}}",
+                  "type": "text"
+                },
+                {
+                  "key": "alert_id",
+                  "value": "",
+                  "type": "text",
+                  "disabled": true
+                },
+                {
+                  "key": "track_id",
+                  "value": "",
+                  "type": "text",
+                  "disabled": true
+                }
+              ]
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Evidence uploaded\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    var json = pm.response.json();",
+                  "    pm.environment.set(\"evidence_id\", json.evidence_id);",
+                  "    pm.collectionVariables.set(\"evidence_id\", json.evidence_id);",
+                  "    pm.expect(json.file_hash).to.have.lengthOf(64);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List evidence",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evidence?skip=0&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "evidence"
+              ],
+              "query": [
+                {
+                  "key": "camera_id",
+                  "value": "{{camera_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "evidence_type",
+                  "value": "snapshot",
+                  "disabled": true
+                },
+                {
+                  "key": "alert_id",
+                  "value": "{{alert_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "is_hot_storage",
+                  "value": "true",
+                  "disabled": true
+                },
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "Newest first, with a file_url and file_exists flag."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Successful response\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get evidence",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evidence/{{evidence_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "evidence",
+                "{{evidence_id}}"
+              ]
+            },
+            "description": "Evidence record plus its authenticated file URL."
+          },
+          "response": []
+        },
+        {
+          "name": "Verify evidence integrity",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evidence/{{evidence_id}}/verify",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "evidence",
+                "{{evidence_id}}",
+                "verify"
+              ]
+            },
+            "description": "Recomputes the SHA-256 on disk and compares it: valid / tampered / missing."
+          },
+          "response": []
+        },
+        {
+          "name": "Play evidence video",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evidence/{{evidence_id}}/playback",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "evidence",
+                "{{evidence_id}}",
+                "playback"
+              ]
+            },
+            "description": "Browser-playable video. Returns the original when it is H.264/VP8, otherwise a cached H.264 preview derived from it (the evidence file and its SHA-256 are never modified)."
+          },
+          "response": []
+        },
+        {
+          "name": "Analyse evidence video",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evidence/{{evidence_id}}/analyze",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "evidence",
+                "{{evidence_id}}",
+                "analyze"
+              ]
+            },
+            "description": "Supervisor or above. Runs YOLOv8x over the video in a worker process; high-risk and critical findings become alerts with SHA-256-verified snapshots. One analysis runs at a time (409 otherwise)."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('accepted', () => pm.response.to.have.status(202));",
+                  "pm.collectionVariables.set('analysis_job_id', pm.response.json().job_id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Evidence analysis status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evidence/{{evidence_id}}/analysis-status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "evidence",
+                "{{evidence_id}}",
+                "analysis-status"
+              ]
+            },
+            "description": "Latest analysis job for this evidence: status, percent, live counts and the final summary."
+          },
+          "response": []
+        },
+        {
+          "name": "Analysis job progress",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evidence/analysis-jobs/{{analysis_job_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "evidence",
+                "analysis-jobs",
+                "{{analysis_job_id}}"
+              ]
+            },
+            "description": "Progress of any analysis job by id (poll every 2 s)."
+          },
+          "response": []
+        },
+        {
+          "name": "Analyse standalone video",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evidence/analyze-standalone",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "evidence",
+                "analyze-standalone"
+              ]
+            },
+            "description": "Supervisor or above. Analyses a video that belongs to no camera: no zones, and no alerts or evidence are stored. The uploaded file is deleted when the analysis ends.",
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "MP4/AVI/MOV/MKV, max 500 MB"
+                }
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Download evidence file",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evidence/files/snapshots/example.jpg",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "evidence",
+                "files",
+                "snapshots",
+                "example.jpg"
+              ],
+              "query": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Authenticated static serving. Works with the Bearer header or ?token= for <img> tags. Every download is audited."
+          },
+          "response": []
+        },
+        {
+          "name": "Archive evidence",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evidence/{{evidence_id}}/archive",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "evidence",
+                "{{evidence_id}}",
+                "archive"
+              ]
+            },
+            "description": "Admin only. Verifies the hash, then moves the file to cold storage."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete evidence",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/evidence/{{evidence_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "evidence",
+                "{{evidence_id}}"
+              ]
+            },
+            "description": "Admin only. Removes the record and the file."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Zones",
+      "description": "Detection zones. risk_bonus is policy, derived from zone_type.",
+      "item": [
+        {
+          "name": "Create zone",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/zones",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "zones"
+              ]
+            },
+            "description": "Supervisor or above. Polygon needs 3+ integer pixel points. risk_bonus is set from zone_type: public 0, buffer 10, sensitive 30, restricted 50, no_mans_land 100.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"camera_id\": \"{{camera_id}}\",\n  \"zone_name\": \"Fence Line North\",\n  \"zone_type\": \"restricted\",\n  \"polygon\": [\n    [\n      100,\n      100\n    ],\n    [\n      500,\n      100\n    ],\n    [\n      500,\n      400\n    ],\n    [\n      100,\n      400\n    ]\n  ],\n  \"loiter_threshold_seconds\": 30,\n  \"night_rules\": {\n    \"multiplier\": 1.5,\n    \"start\": 22,\n    \"end\": 5\n  },\n  \"allowed_persons\": [],\n  \"color_hex\": \"#ff0000\",\n  \"is_active\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Zone created\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    var json = pm.response.json();",
+                  "    pm.environment.set(\"zone_id\", json.zone_id);",
+                  "    pm.collectionVariables.set(\"zone_id\", json.zone_id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "List zones",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/zones?is_active=true",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "zones"
+              ],
+              "query": [
+                {
+                  "key": "camera_id",
+                  "value": "{{camera_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "zone_type",
+                  "value": "restricted",
+                  "disabled": true
+                },
+                {
+                  "key": "is_active",
+                  "value": "true"
+                }
+              ]
+            },
+            "description": "All zones visible to you."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Successful response\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Zones for camera",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/zones/{{camera_id}}?include_inactive=false",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "zones",
+                "{{camera_id}}"
+              ],
+              "query": [
+                {
+                  "key": "include_inactive",
+                  "value": "false"
+                }
+              ]
+            },
+            "description": "Active zones of one camera."
+          },
+          "response": []
+        },
+        {
+          "name": "Update zone",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/zones/{{zone_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "zones",
+                "{{zone_id}}"
+              ]
+            },
+            "description": "Supervisor or above. Broadcasts zone_update to everyone watching the camera.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"zone_name\": \"Fence Line North (revised)\",\n  \"polygon\": [\n    [\n      120,\n      120\n    ],\n    [\n      520,\n      120\n    ],\n    [\n      520,\n      420\n    ],\n    [\n      120,\n      420\n    ]\n  ],\n  \"loiter_threshold_seconds\": 20,\n  \"night_rules\": {\n    \"multiplier\": 2.0,\n    \"start\": 21,\n    \"end\": 6\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete zone (soft)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/zones/{{zone_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "zones",
+                "{{zone_id}}"
+              ]
+            },
+            "description": "Supervisor or above. Sets is_active=false and broadcasts zone_deleted."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Hardware",
+      "description": "Hardware registry. Connection passwords are always masked in responses.",
+      "item": [
+        {
+          "name": "Hardware status board",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/hardware/status",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "hardware",
+                "status"
+              ]
+            },
+            "description": "Every hardware type with connected/disconnected/error/standby counts and masked configs."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"No secrets in response\", function () {",
+                  "    var body = pm.response.text();",
+                  "    pm.expect(body).to.not.include(\"password_hash\");",
+                  "    pm.expect(body.toLowerCase()).to.not.include(\"hikvision123\");",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Register hardware",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/hardware/register",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "hardware",
+                "register"
+              ]
+            },
+            "description": "Admin only. connection_config is stored as given but never returned in clear text.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"hardware_type\": \"thermal_camera\",\n  \"name\": \"Thermal Unit North 1\",\n  \"model_number\": \"FLIR-A310\",\n  \"manufacturer\": \"FLIR\",\n  \"connection_config\": {\n    \"rtsp_url\": \"rtsp://10.0.0.31:554/thermal\",\n    \"username\": \"operator\",\n    \"password\": \"hikvision123\"\n  },\n  \"status\": \"standby\",\n  \"camera_id\": \"{{camera_id}}\",\n  \"capabilities\": [\n    \"thermal\",\n    \"night_vision\"\n  ],\n  \"firmware_version\": \"2.4.1\",\n  \"notes\": \"Mounted on the north watchtower\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Hardware registered\", function () {",
+                  "    pm.response.to.have.status(201);",
+                  "    var json = pm.response.json();",
+                  "    pm.environment.set(\"hardware_id\", json.hardware_id);",
+                  "    pm.collectionVariables.set(\"hardware_id\", json.hardware_id);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Test hardware connection",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/hardware/{{hardware_id}}/test-connection",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "hardware",
+                "{{hardware_id}}",
+                "test-connection"
+              ]
+            },
+            "description": "Supervisor or above. Cameras are probed with OpenCV, other devices with an HTTP request. Updates status and last_seen."
+          },
+          "response": []
+        },
+        {
+          "name": "Update hardware",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/hardware/{{hardware_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "hardware",
+                "{{hardware_id}}"
+              ]
+            },
+            "description": "Admin only. Sending back the masked '***' keeps the stored secret unchanged.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"notes\": \"Firmware updated during the September maintenance window\",\n  \"capabilities\": [\n    \"thermal\",\n    \"night_vision\",\n    \"ptz\"\n  ],\n  \"connection_config\": {\n    \"rtsp_url\": \"rtsp://10.0.0.31:554/thermal\",\n    \"password\": \"***\"\n  }\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Delete hardware",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/hardware/{{hardware_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "hardware",
+                "{{hardware_id}}"
+              ]
+            },
+            "description": "Admin only."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Stats",
+      "description": "Live metrics, audit trail and health history.",
+      "item": [
+        {
+          "name": "Live stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stats"
+              ]
+            },
+            "description": "Detection counts for today, alert and camera counts, FPS, CPU/RAM/GPU/disk and uptime."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Successful response\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Audit log",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stats/audit-log?skip=0&limit=100",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stats",
+                "audit-log"
+              ],
+              "query": [
+                {
+                  "key": "action",
+                  "value": "LOGIN_SUCCESS",
+                  "disabled": true
+                },
+                {
+                  "key": "status",
+                  "value": "denied",
+                  "disabled": true
+                },
+                {
+                  "key": "user_id",
+                  "value": "{{user_id}}",
+                  "disabled": true
+                },
+                {
+                  "key": "date_from",
+                  "value": "2026-09-01T00:00:00Z",
+                  "disabled": true
+                },
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "limit",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "Admin only. Every action in the system is recorded here."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Successful response\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "System health history",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/stats/system-health-history?hours=24",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "stats",
+                "system-health-history"
+              ],
+              "query": [
+                {
+                  "key": "hours",
+                  "value": "24"
+                },
+                {
+                  "key": "server_name",
+                  "value": "local",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Admin or regional head. Samples recorded every 60 seconds by the background service."
+          },
+          "response": [],
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Successful response\", function () {",
+                  "    pm.expect(pm.response.code).to.be.oneOf([200, 201, 204]);",
+                  "});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "WebSocket",
+      "description": "Live stream socket: ws://localhost:8000/ws/{camera_id}?token=<JWT>\n\nPostman v2.1 collections cannot carry WebSocket requests, so create a WebSocket request in Postman (New > WebSocket) with the URL above and use the message examples below.\n\nSend ping:\n{\"type\": \"ping\"}\n\nSend frame_data (admin/supervisor only \u2014 this is the Week 3 ML pipeline channel):\n{\"type\": \"frame_data\", \"camera_id\": \"CAM-N-001\", \"frame\": \"<base64 jpeg>\", \"detections\": [{\"track_id\": 7, \"object_class\": \"person\", \"confidence\": 0.91, \"cx\": 320, \"cy\": 240, \"bbox_x1\": 300, \"bbox_y1\": 200, \"bbox_x2\": 340, \"bbox_y2\": 280, \"in_fence\": true, \"zone_name\": \"Fence Line North\", \"zone_type\": \"restricted\", \"loitering\": false, \"time_in_zone_seconds\": 4, \"direction\": \"north\", \"risk_score\": 85, \"risk_level\": \"critical\"}], \"alerts\": [{\"alert_type\": \"intrusion\", \"risk_score\": 85, \"risk_reasons\": [\"restricted zone\", \"night hours\"]}], \"stats\": {\"people_count\": 1, \"vehicle_count\": 0, \"animal_count\": 0, \"active_alerts\": 1, \"fps\": 15.2}, \"timestamp\": \"2026-09-16T18:30:00Z\"}\n\nSend acknowledge:\n{\"type\": \"acknowledge\", \"alert_id\": \"ALT-20260916183000-a1b2c3d4e5f6a7b8\", \"false_alarm\": false, \"notes\": \"Patrol dispatched\"}\n\nReceived types: connected, pong, frame_update, frame_ack, acknowledge_ok, error, camera_offline, camera_online, critical_alert, alert_acknowledged, zone_update, zone_deleted, neighbor_offline_alert.",
+      "item": [
+        {
+          "name": "WebSocket docs (placeholder)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/docs",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "docs"
+              ]
+            },
+            "description": "Opens Swagger UI. The WebSocket contract itself is documented in this folder's description.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

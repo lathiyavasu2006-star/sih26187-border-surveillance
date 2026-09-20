@@ -1,0 +1,25 @@
+# Week 3 ML pipeline dependencies (install after requirements.txt).
+#
+# PyTorch must come from the CUDA 12.1 index, never plain PyPI (that build is CPU-only):
+#   pip install torch==2.5.1+cu121 torchvision==0.20.1+cu121 torchaudio==2.5.1+cu121 --index-url https://download.pytorch.org/whl/cu121
+#
+# Install ultralytics AFTER torch, otherwise pip pulls the CPU torch wheel from PyPI.
+ultralytics==8.3.0
+# lap 0.4.0 has no wheel for Python 3.11 on Windows and its setup.py no longer builds;
+# 0.5.12 is the same package (import name `lap`) with prebuilt wheels.
+lap==0.5.12
+websockets==12.0
+httpx==0.28.1
+onnx==1.17.0
+
+# ---- Optional: TensorRT FP16 engine (RTX 3050 laptop, AC power: YOLOv8x inference 31.8 ms -> 19.0 ms) ----
+# Ultralytics 8.3.0 supports TensorRT <= 10.1.0 and 10.1.0 has a known export bug, so pin 10.0.1.
+# Download both wheels from https://pypi.nvidia.com and verify these SHA256 values before installing:
+#   tensorrt_cu12_libs-10.0.1-py2.py3-none-win_amd64.whl      82212e1c2dec721ae2570cd759d6bf4e7e6f6c2c3f3c616324ca8aeb5d2d8c6f
+#   tensorrt_cu12_bindings-10.0.1-cp311-none-win_amd64.whl    1e4f708cbd864668385493dee8958ba4e538b2c54172239fd2f64ca45d6ca303
+#   tensorrt-cu12-10.0.1.tar.gz (import shim)                 ebb89f6f9b6d187265f3bc829e38cff6e27059508e9a160e229506e5d9b648a0
+# The shim's setup.py runs a nested, unverified `pip install` of the 1 GB libs unless disabled:
+#   pip install --no-deps --no-index <libs.whl> <bindings.whl>
+#   pip install wheel
+#   set NVIDIA_TENSORRT_DISABLE_INTERNAL_PIP=1 && pip install --no-deps --no-index --no-build-isolation tensorrt-cu12-10.0.1.tar.gz
+# Then build the engine for this GPU:  python -m ml.build_engine --workspace 2

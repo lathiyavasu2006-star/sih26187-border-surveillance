@@ -1,0 +1,80 @@
+# SIH26187 — AI Border Surveillance System
+# Source code only. Credentials, surveillance data, models and datasets never leave this machine.
+
+# ---- Environment & secrets — NEVER UPLOAD
+.env
+.env.*
+!.env.example
+*.env
+
+# ---- Database dumps
+*.sql
+*.dump
+*.db
+*.sqlite3
+
+# ---- ML models (large binaries)
+models/
+*.pt
+*.engine
+*.onnx
+*.trt
+
+# ---- Evidence — sensitive surveillance data (snapshots, clips, uploads)
+evidence/
+
+# ---- Datasets — large and sensitive
+datasets/
+
+# ---- Logs & runtime state
+logs/
+*.log
+prototype-pids.json
+
+# ---- Python
+__pycache__/
+*.py[cod]
+*$py.class
+.Python
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+env/
+pip-wheel-metadata/
+
+# ---- Node / frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+.npm/
+npm-debug.log*
+
+# ---- Package binaries / caches
+.cache/
+wheels/
+*.whl
+*.zip
+*.tar.gz
+
+# ---- Tests & coverage
+.pytest_cache/
+.ruff_cache/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+
+# ---- IDE / editor
+.vscode/settings.json
+.idea/
+*.suo
+*.user
+*.swp
+
+# ---- Windows
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+*.lnk

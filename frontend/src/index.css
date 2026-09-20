@@ -1,0 +1,101 @@
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: 'Inter', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Cascadia Mono', 'Consolas', ui-monospace, monospace;
+
+  --color-shell: #f6f7f9;
+  --color-panel: #ffffff;
+  --color-line: #e5e7eb;
+  --color-ink: #0f172a;
+  --color-muted: #64748b;
+  --color-hud: #22d3ee;
+  --color-hud-dark: #0e7490;
+  --color-command: #0b1220;
+
+  --animate-blink: blink 1.2s steps(2, start) infinite;
+  --animate-pulse-ring: pulse-ring 1.6s cubic-bezier(0.2, 0.6, 0.4, 1) infinite;
+  --animate-scan: scan 3.5s linear infinite;
+
+  @keyframes blink {
+    to {
+      visibility: hidden;
+    }
+  }
+  @keyframes pulse-ring {
+    0% {
+      transform: scale(0.6);
+      opacity: 0.9;
+    }
+    100% {
+      transform: scale(2.4);
+      opacity: 0;
+    }
+  }
+  @keyframes scan {
+    0% {
+      transform: translateY(-100%);
+    }
+    100% {
+      transform: translateY(100%);
+    }
+  }
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-shell text-ink antialiased;
+    font-family: var(--font-sans);
+    font-feature-settings: 'tnum' 1, 'cv11' 1;
+    overflow: hidden;
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-hud-dark);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: rgb(34 211 238 / 0.3);
+  }
+}
+
+@layer components {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 transparent;
+  }
+  .scrollbar-none {
+    scrollbar-width: none;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .hud-grid-bg {
+    background-color: #0b1220;
+    background-image:
+      linear-gradient(rgb(34 211 238 / 0.06) 1px, transparent 1px),
+      linear-gradient(90deg, rgb(34 211 238 / 0.06) 1px, transparent 1px);
+    background-size: 24px 24px;
+  }
+  .kbd {
+    @apply inline-flex min-w-6 items-center justify-center rounded-md border border-slate-300 bg-white px-1.5 py-0.5 font-mono text-[11px] font-semibold text-slate-700 shadow-[0_1px_0_#cbd5e1];
+  }
+}
+
+.leaflet-container {
+  font-family: var(--font-sans);
+  background: #dfe6ee;
+}
+.leaflet-tooltip.threat-tooltip {
+  @apply rounded-md border-0 bg-slate-900/95 px-2 py-1 text-[11px] font-medium text-white shadow-lg;
+}
+.leaflet-tooltip.threat-tooltip::before {
+  display: none;
+}
+.tactical-tiles {
+  filter: grayscale(1) sepia(1) hue-rotate(115deg) saturate(2.6) brightness(1.25) contrast(1.1);
+}
