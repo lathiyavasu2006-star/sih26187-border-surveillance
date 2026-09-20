@@ -1,6 +1,6 @@
 # SIH26187 — AI Border Surveillance System
 
-**Smart India Hackathon | Ministry of Home Affairs — Sashastra Seema Bal (SSB)**
+**Smart India Hackathon 2026 | Ministry of Home Affairs — Sashastra Seema Bal (SSB)**
 
 ![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.141-009688?logo=fastapi&logoColor=white)
@@ -255,7 +255,7 @@ Honest scope of this prototype:
 
 ## Disclaimer
 
-This is a prototype built for the Smart India Hackathon problem statement SIH26187. It is not a deployed
+This is a prototype built for Smart India Hackathon 2026, problem statement SIH26187. It is not a deployed
 government system, and it contains no operational or classified data. Actual deployment would require
 additional security hardening, accreditation and integration with government networks.
 
