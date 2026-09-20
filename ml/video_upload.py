@@ -36,7 +36,7 @@ class VideoUploadProcessor:
         self,
         video_path: str,
         camera_id: str,
-        frame_step: int = 5,
+        frame_step: int = 0,  # 0 = ml_config.analysis_frame_step
         zones: Optional[List[Dict]] = None,
         save_snapshots: bool = True,
         recorded_at: Optional[datetime] = None,
@@ -50,7 +50,14 @@ class VideoUploadProcessor:
         if not await asyncio.to_thread(stream.start):
             return {"error": "Cannot open video file"}
 
-        frame_step = max(1, int(frame_step))
+        frame_step = int(frame_step) or ml_config.analysis_frame_step
+        if frame_step <= 0:
+            # Every frame is what finds people who cross quickly; only a long recording is sampled, and then
+            # as densely as the frame budget allows.
+            total_frames = stream.frame_count or 0
+            frame_step = max(1, -(-total_frames // max(1, ml_config.analysis_max_frames))) if total_frames else 1
+            logger.info("[%s] analysing every %s frame(s) of %s", camera_id, frame_step, total_frames or "unknown")
+        frame_step = max(1, frame_step)
         base_time = (recorded_at or datetime.now(timezone.utc)).astimezone(timezone.utc)
         memory = EventMemory()
         analyzer = FrameAnalyzer(camera_id, memory)

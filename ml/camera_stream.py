@@ -54,7 +54,9 @@ class CameraStream:
         self._grabber: Optional[threading.Thread] = None
         self._stop = threading.Event()
         self.fps = 0.0
+        #: Frames in the file (0 for live sources, which have no end).
         self.resolution: Tuple[int, int] = (0, 0)
+        self.frame_count = 0
         self.frames_read = 0
         self.reconnects = 0
         self.ended = False  # video file finished
@@ -101,6 +103,8 @@ class CameraStream:
             fps = float(self.cap.get(cv2.CAP_PROP_FPS) or 0.0)
             self.fps = fps if 1.0 <= fps <= 240.0 else DEFAULT_FPS
             self.resolution = (int(self.cap.get(cv2.CAP_PROP_FRAME_WIDTH)), int(self.cap.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+            count = int(self.cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0) if self.is_file else 0
+            self.frame_count = count if count > 0 else 0
             self._reconnect_attempts = 0
             logger.info("[%s] source opened %sx%s @ %.1f fps", self.camera_id, *self.resolution, self.fps)
             return True

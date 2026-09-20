@@ -82,6 +82,7 @@ def count_frames(video_path: str) -> int:
 
 
 async def run(args: argparse.Namespace) -> int:
+    from ml.config import ml_config
     from ml.detector import detector
     from ml.video_upload import video_processor
 
@@ -121,15 +122,24 @@ async def run(args: argparse.Namespace) -> int:
 
 
 def main() -> None:
+    from ml.config import ml_config
+
     parser = argparse.ArgumentParser(description="SIH26187 video analysis worker")
     parser.add_argument("--video", required=True)
     parser.add_argument("--job-file", required=True)
     target = parser.add_mutually_exclusive_group(required=True)
     target.add_argument("--camera")
     target.add_argument("--standalone", action="store_true")
-    parser.add_argument("--frame-step", type=int, default=5)
+    parser.add_argument("--frame-step", type=int, default=ml_config.analysis_frame_step)
+    parser.add_argument("--image-size", type=int, default=ml_config.analysis_image_size)
     parser.add_argument("--recorded-at")
     args = parser.parse_args()
+
+    # Offline analysis trades speed for recall: a larger input finds the people a live 640 px pass misses.
+    # Only this worker process is affected, and the TensorRT engine (built for the live size) steps aside.
+    if args.image_size and args.image_size != ml_config.image_size:
+        ml_config.image_size = int(args.image_size)
+        ml_config.use_tensorrt = ml_config.analysis_use_tensorrt
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)-8s [%(name)s] %(message)s")
     try:

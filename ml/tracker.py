@@ -45,12 +45,13 @@ class _TrackInput:
 def _tracker_args(frame_rate: float):
     from ultralytics.utils import IterableSimpleNamespace
 
-    high = float(ml_config.conf_threshold)
+    # Tracks start at track_new_conf; conf_threshold stays the bar for weapon attribution and alerts.
+    high = float(ml_config.track_new_conf)
     return IterableSimpleNamespace(
         tracker_type="bytetrack",
         track_high_thresh=high,
         track_low_thresh=min(TRACK_LOW_THRESH, high),
-        new_track_thresh=min(0.95, high + NEW_TRACK_MARGIN),
+        new_track_thresh=min(0.95, high),
         track_buffer=int(ml_config.track_buffer),
         match_thresh=float(ml_config.match_threshold),
         fuse_score=True,

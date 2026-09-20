@@ -66,6 +66,15 @@ class MLConfig:
     iou_threshold: float = field(default_factory=lambda: _env_float("ML_IOU_THRESHOLD", 0.45))
     tracker_input_conf: float = field(default_factory=lambda: _env_float("ML_TRACKER_INPUT_CONF", 0.1))
     image_size: int = field(default_factory=lambda: _env_int("ML_IMAGE_SIZE", 640))
+    #: Offline video analysis runs larger and on every frame: it has no real-time budget to respect, and small
+    #: or fast-moving people are the whole point of re-watching a recording.
+    analysis_image_size: int = field(default_factory=lambda: _env_int("ML_ANALYSIS_IMAGE_SIZE", 960))
+    #: 0 = choose per video: every frame for short clips, stepping up so a long recording still finishes
+    #: within analysis_max_frames detections.
+    analysis_frame_step: int = field(default_factory=lambda: _env_int("ML_ANALYSIS_FRAME_STEP", 0))
+    analysis_max_frames: int = field(default_factory=lambda: _env_int("ML_ANALYSIS_MAX_FRAMES", 4000))
+    #: The TensorRT engine is built for image_size; analysis uses PyTorch so it can run at a different size.
+    analysis_use_tensorrt: bool = field(default_factory=lambda: _env_bool("ML_ANALYSIS_USE_TENSORRT", False))
     device: str = "cuda" if torch.cuda.is_available() else "cpu"
     half_precision: bool = field(default_factory=lambda: _env_bool("ML_HALF_PRECISION", True))
     detect_animals: bool = field(default_factory=lambda: _env_bool("ML_DETECT_ANIMALS", True))
@@ -77,6 +86,10 @@ class MLConfig:
     # ~3 s at 30 fps: short occlusions and missed detections keep their track instead of spawning a new id.
     track_buffer: int = field(default_factory=lambda: _env_int("ML_TRACK_BUFFER", 90))
     match_threshold: float = field(default_factory=lambda: _env_float("ML_MATCH_THRESHOLD", 0.8))
+    #: Confidence a detection needs to START a track. People far from the camera, partly hidden or blurred by
+    #: motion score 0.25-0.35, so the old 0.45 dropped them entirely; ByteTrack then keeps them with weaker
+    #: evidence once the track exists.
+    track_new_conf: float = field(default_factory=lambda: _env_float("ML_TRACK_NEW_CONF", 0.30))
     min_box_area: int = field(default_factory=lambda: _env_int("ML_MIN_BOX_AREA", 10))
     trail_length: int = field(default_factory=lambda: _env_int("TRAIL_LENGTH", 50))
     lost_track_seconds: float = field(default_factory=lambda: _env_float("ML_LOST_TRACK_SECONDS", 1.5))
