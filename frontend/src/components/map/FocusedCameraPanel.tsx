@@ -1,4 +1,4 @@
-import { Compass, Hexagon, LocateFixed, X } from 'lucide-react'
+import { Compass, Hexagon, LocateFixed, Ruler, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { Button, StatusDot } from '@/components/ui/primitives'
 import { useCameraZones } from '@/hooks/useData'
@@ -13,11 +13,13 @@ export function FocusedCameraPanel({
   onClose,
   onLocate,
   onStreetView,
+  onCalibrate,
 }: {
   camera: CameraWithAlertCount
   onClose: () => void
   onLocate?: () => void
   onStreetView?: () => void
+  onCalibrate?: () => void
 }) {
   const navigate = useNavigate()
   const selectCamera = useUiStore((state) => state.selectCamera)
@@ -83,6 +85,18 @@ export function FocusedCameraPanel({
           </p>
         ))}
         {!zones.isLoading && activeZones.length === 0 ? <p className="text-[11px] text-muted">No active fences drawn in the camera frame.</p> : null}
+        {onCalibrate ? (
+          <p className="mt-1.5 flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2 py-1.5">
+            <span className="text-[11px] text-muted">
+              {camera.calibrated
+                ? `Map-calibrated (±${camera.calibration_error_px?.toFixed(0) ?? '?'} px)`
+                : 'Not calibrated: map fences cannot reach this camera yet'}
+            </span>
+            <Button size="xs" variant={camera.calibrated ? 'secondary' : 'hud'} icon={<Ruler className="size-3.5" />} onClick={onCalibrate} data-testid="focus-calibrate">
+              {camera.calibrated ? 'Recalibrate' : 'Calibrate'}
+            </Button>
+          </p>
+        ) : null}
         <Button
           size="xs"
           className="mt-1.5"

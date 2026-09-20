@@ -56,7 +56,8 @@ export function makeZone(overrides: Partial<Zone> = {}): Zone {
     camera_id: 'CAM-N-001',
     zone_name: 'Gate',
     zone_type: 'restricted',
-    polygon: [
+    geo_polygon: null,
+  polygon: [
       [300, 100],
       [500, 100],
       [500, 300],

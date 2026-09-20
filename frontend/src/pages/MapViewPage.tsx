@@ -1,10 +1,12 @@
 import type { LeafletMouseEvent, Map as LeafletMap } from 'leaflet'
-import { Compass, Flame, LocateFixed, MapPinOff, Map as MapIcon, ShieldAlert } from 'lucide-react'
+import { Compass, Flame, Hexagon, LocateFixed, MapPinOff, Map as MapIcon, ShieldAlert, Undo2 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { mergeAlerts } from '@/lib/alerts'
+import { CalibrationDialog } from '@/components/camera/CalibrationDialog'
 import { LocateCameraDialog } from '@/components/camera/LocateCameraDialog'
+import { MapZoneDialog } from '@/components/map/MapZoneDialog'
 import { FocusedCameraPanel } from '@/components/map/FocusedCameraPanel'
 import { IndiaMap } from '@/components/map/IndiaMap'
 import { PanoramaView } from '@/components/map/PanoramaView'
@@ -12,7 +14,7 @@ import { BORDER_REGIONS, GEOFENCE_RINGS, type BorderRegion } from '@/lib/mapData
 import { MAP_STYLE_DEFINITIONS } from '@/components/map/mapStyles'
 import { Badge, Button, Card, CardHeader, PageHeader, RiskBadge, Select, StatusDot, Switch } from '@/components/ui/primitives'
 import { useAlerts } from '@/hooks/useAlerts'
-import { useCameras } from '@/hooks/useData'
+import { useCameras, useMapZones } from '@/hooks/useData'
 import { useKeyboard } from '@/hooks/useKeyboard'
 import { INDIA_BOUNDS, RISK_LEVELS, RISK_META, ZONE_META } from '@/lib/constants'
 import { formatRelative, titleCase } from '@/lib/utils'
@@ -38,6 +40,10 @@ export function MapViewPage() {
   const focusId = searchParams.get('focus')?.toUpperCase() || null
   const [allFences, setAllFences] = useState(false)
   const [locating, setLocating] = useState<CameraWithAlertCount | null>(null)
+  const zones = useMapZones()
+  const [drawing, setDrawing] = useState<[number, number][] | null>(null)
+  const [zoneDraft, setZoneDraft] = useState<[number, number][] | null>(null)
+  const [calibrating, setCalibrating] = useState<CameraWithAlertCount | null>(null)
   const [streetMode, setStreetMode] = useState(false)
   const [panorama, setPanorama] = useState<PanoramaLocation | null>(null)
   const mapRef = useRef<LeafletMap | null>(null)
@@ -78,6 +84,26 @@ export function MapViewPage() {
       return !value
     })
   }
+  const toggleDrawing = () => {
+    setDrawing((current) => {
+      if (current) return null
+      if (!canManageCameras) {
+        toast.error('Drawing a fence requires the supervisor role or above')
+        return null
+      }
+      setStreetMode(false)
+      toast('Click the map to place each corner, then Finish', { id: 'draw-zone', duration: 3000, icon: '✏️' })
+      return []
+    })
+  }
+  const finishDrawing = () => {
+    if (!drawing || drawing.length < 3) {
+      toast.error('A fence needs at least three corners')
+      return
+    }
+    setZoneDraft(drawing)
+    setDrawing(null)
+  }
   const toggleStreetMode = () => {
     setStreetMode((value) => {
       if (!value) toast('Click anywhere on the map to look around from there', { id: 'street', duration: 2500, icon: '🧭' })
@@ -93,6 +119,11 @@ export function MapViewPage() {
   useKeyboard({
     v: toggleFences,
     y: toggleStreetMode,
+    z: toggleDrawing,
+    enter: () => {
+      if (drawing) finishDrawing()
+    },
+    escape: { handler: () => setDrawing(null), allowDefault: true },
     m: () => toast(`Map style: ${MAP_STYLE_DEFINITIONS[cycleMapStyle()].label}`, { id: 'map-style', duration: 1500 }),
     h: toggleHeatmap,
     g: () => mapRef.current?.flyToBounds(INDIA_BOUNDS, { padding: [12, 12], duration: 0.8 }),
@@ -124,7 +155,7 @@ export function MapViewPage() {
       <PageHeader
         icon={<MapIcon className="size-4" />}
         title="Threat Map"
-        subtitle={`Style: ${MAP_STYLE_DEFINITIONS[mapStyle].label} · M styles · H heatmap · V fences · Y street view · G India · N/E/W/S regions · +/− zoom`}
+        subtitle={`Style: ${MAP_STYLE_DEFINITIONS[mapStyle].label} · M styles · H heatmap · V rings · Z draw fence · Y street view · G India · N/E/W/S regions · +/− zoom`}
         actions={
           <>
             <div className="flex items-center gap-1 rounded-lg border border-line bg-white p-1" role="group" aria-label="Border regions">
@@ -151,6 +182,11 @@ export function MapViewPage() {
             <Button size="sm" variant={heatmap ? 'primary' : 'secondary'} icon={<Flame className="size-3.5" />} onClick={toggleHeatmap} aria-pressed={heatmap} data-testid="heatmap-toggle">
               Heatmap <kbd className="kbd">H</kbd>
             </Button>
+            {canManageCameras ? (
+              <Button size="sm" variant={drawing ? 'primary' : 'secondary'} icon={<Hexagon className="size-3.5" />} onClick={toggleDrawing} aria-pressed={Boolean(drawing)} data-testid="draw-zone-toggle">
+                Draw fence <kbd className="kbd">Z</kbd>
+              </Button>
+            ) : null}
             <Button size="sm" variant={streetMode ? 'primary' : 'secondary'} icon={<Compass className="size-3.5" />} onClick={toggleStreetMode} aria-pressed={streetMode} data-testid="street-view-toggle">
               Street view <kbd className="kbd">Y</kbd>
             </Button>
@@ -179,8 +215,25 @@ export function MapViewPage() {
             heatmap={heatmap}
             focusCameraId={focusedCamera?.camera_id ?? null}
             fences={fences}
+            zones={zones.data?.items ?? []}
+            drawing={drawing}
+            onAddCorner={(point) => setDrawing((current) => [...(current ?? []), point])}
             onMapReady={onMapReady}
           />
+          {drawing ? (
+            <div className="absolute bottom-4 left-1/2 z-[500] flex -translate-x-1/2 items-center gap-2 rounded-xl border border-line bg-white/95 px-3 py-2 shadow-lg backdrop-blur" data-testid="drawing-toolbar">
+              <span className="font-mono text-[11px] text-slate-600">{drawing.length} corner(s)</span>
+              <Button size="xs" icon={<Undo2 className="size-3.5" />} disabled={!drawing.length} onClick={() => setDrawing(drawing.slice(0, -1))}>
+                Undo
+              </Button>
+              <Button size="xs" variant="primary" disabled={drawing.length < 3} onClick={finishDrawing} data-testid="finish-zone">
+                Finish <kbd className="kbd">⏎</kbd>
+              </Button>
+              <Button size="xs" onClick={() => setDrawing(null)}>
+                Cancel
+              </Button>
+            </div>
+          ) : null}
           {focusedCamera ? (
             <FocusedCameraPanel
               camera={focusedCamera}
@@ -191,6 +244,7 @@ export function MapViewPage() {
                   ? () => setPanorama({ lat: focusedCamera.gps_lat ?? 0, lng: focusedCamera.gps_lng ?? 0, label: focusedCamera.camera_id })
                   : undefined
               }
+              onCalibrate={canManageCameras ? () => setCalibrating(focusedCamera) : undefined}
             />
           ) : null}
         </Card>
@@ -267,6 +321,18 @@ export function MapViewPage() {
         </div>
       </div>
       {locating ? <LocateCameraDialog camera={locating} onClose={() => setLocating(null)} /> : null}
+      {zoneDraft ? (
+        <MapZoneDialog
+          polygon={zoneDraft}
+          cameras={cameraItems}
+          onClose={() => setZoneDraft(null)}
+          onCalibrate={(camera) => {
+            setZoneDraft(null)
+            setCalibrating(camera)
+          }}
+        />
+      ) : null}
+      {calibrating ? <CalibrationDialog camera={calibrating} onClose={() => setCalibrating(null)} /> : null}
     </div>
   )
 }

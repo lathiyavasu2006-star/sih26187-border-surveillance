@@ -32,6 +32,16 @@ export function useHardwareStatus() {
 }
 
 /** Zones of one camera, refreshed immediately when the backend broadcasts zone_update / zone_deleted. */
+/** Every active zone that was drawn on the map, for the threat map overlay. */
+export function useMapZones() {
+  return useQuery({
+    queryKey: ['zones', 'map'],
+    queryFn: () => zonesApi.list({ is_active: true }),
+    staleTime: 60_000,
+    select: (page) => ({ ...page, items: page.items.filter((zone) => zone.geo_polygon !== null) }),
+  })
+}
+
 export function useCameraZones(cameraId: string | null | undefined, includeInactive = false) {
   const queryClient = useQueryClient()
   const query = useQuery({

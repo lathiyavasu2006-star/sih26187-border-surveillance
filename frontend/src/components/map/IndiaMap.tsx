@@ -3,6 +3,7 @@ import { Layers } from 'lucide-react'
 import { useEffect, useMemo } from 'react'
 import { MapContainer, Rectangle, ScaleControl, TileLayer, useMap } from 'react-leaflet'
 import { GeoFences } from '@/components/map/GeoFences'
+import { MapZones, ZoneDrawing } from '@/components/map/MapZones'
 import { HeatLayer } from '@/components/map/HeatLayer'
 import { CameraMarker, ThreatMarker } from '@/components/map/ThreatMarker'
 import { HYBRID_OVERLAY, MAP_STYLE_DEFINITIONS } from '@/components/map/mapStyles'
@@ -10,7 +11,7 @@ import { INDIA_BOUNDS, INDIA_CENTER } from '@/lib/constants'
 import { CAMERA_FOCUS_ZOOM, heatPoints } from '@/lib/mapData'
 import { cn } from '@/lib/utils'
 import { MAP_STYLES, useUiStore } from '@/stores/uiStore'
-import type { Alert, CameraWithAlertCount } from '@/types'
+import type { Alert, CameraWithAlertCount, Zone } from '@/types'
 
 function FitBounds({ points, focus }: { points: [number, number][]; focus: [number, number] | null }) {
   const map = useMap()
@@ -61,6 +62,10 @@ export function IndiaMap({
   heatmap = false,
   focusCameraId = null,
   fences = 'off',
+  zones = [],
+  drawing = null,
+  onAddCorner,
+  onSelectZone,
   onMapReady,
 }: {
   cameras: readonly CameraWithAlertCount[]
@@ -74,6 +79,12 @@ export function IndiaMap({
   focusCameraId?: string | null
   /** Geo-fence rings: none, only around the focused camera, or around every placed camera. */
   fences?: 'off' | 'focused' | 'all'
+  /** Zones drawn on the map (zone.geo_polygon), shown where the operator drew them. */
+  zones?: readonly Zone[]
+  /** Corners of the polygon being drawn right now; non-null puts the map in drawing mode. */
+  drawing?: readonly [number, number][] | null
+  onAddCorner?: (point: [number, number]) => void
+  onSelectZone?: (zone: Zone) => void
   onMapReady?: (map: LeafletMap | null) => void
 }) {
   const mapStyle = useUiStore((state) => state.mapStyle)
@@ -127,6 +138,8 @@ export function IndiaMap({
         <Rectangle bounds={INDIA_BOUNDS} pathOptions={{ color: definition.dark ? '#22d3ee' : '#0e7490', weight: 1, dashArray: '6 6', fill: false, opacity: 0.5 }} />
         {heat.length ? <HeatLayer points={heat} /> : null}
         {fencedCameras.length ? <GeoFences cameras={fencedCameras} /> : null}
+        {zones.length ? <MapZones zones={zones} onSelect={onSelectZone} /> : null}
+        {drawing && onAddCorner ? <ZoneDrawing points={drawing} onAdd={onAddCorner} /> : null}
         {cameras.map((camera) => (
           <CameraMarker key={camera.camera_id} camera={camera} critical={criticalCameras.has(camera.camera_id)} />
         ))}

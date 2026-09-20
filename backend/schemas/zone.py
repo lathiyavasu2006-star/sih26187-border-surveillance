@@ -35,6 +35,27 @@ def validate_polygon(points: List[List[float]]) -> List[List[float]]:
     return cleaned
 
 
+def validate_geo_polygon(points: List[List[float]]) -> List[List[float]]:
+    """Polygon as drawn on the map: [[lat, lng], ...]. The pixel polygon is projected from it server-side."""
+    if len(points) < 3:
+        raise ValueError("geo_polygon requires at least 3 points")
+    if len(points) > MAX_POLYGON_POINTS:
+        raise ValueError(f"geo_polygon supports at most {MAX_POLYGON_POINTS} points")
+    cleaned = []
+    for index, point in enumerate(points):
+        if len(point) != 2:
+            raise ValueError(f"geo_polygon point {index} must be [lat, lng]")
+        lat, lng = float(point[0]), float(point[1])
+        if not -90 <= lat <= 90:
+            raise ValueError(f"geo_polygon point {index} has a latitude outside -90..90")
+        if not -180 <= lng <= 180:
+            raise ValueError(f"geo_polygon point {index} has a longitude outside -180..180")
+        cleaned.append([round(lat, 7), round(lng, 7)])
+    if len({(p[0], p[1]) for p in cleaned}) < 3:
+        raise ValueError("geo_polygon requires at least 3 distinct points")
+    return cleaned
+
+
 def validate_night_rules(rules: Dict[str, Any]) -> Dict[str, Any]:
     merged = {**default_night_rules(), **rules}
     unknown = set(merged) - {"multiplier", "start", "end"}
@@ -52,7 +73,10 @@ def validate_night_rules(rules: Dict[str, Any]) -> Dict[str, Any]:
 class ZoneBase(InputSchema):
     zone_name: str = Field(min_length=1, max_length=100)
     zone_type: ZoneType
-    polygon: List[List[float]]
+    #: Pixel polygon in the camera frame. Optional when geo_polygon is sent: the server projects it.
+    polygon: Optional[List[List[float]]] = None
+    #: Polygon drawn on the map ([[lat, lng], ...]); needs a calibrated camera.
+    geo_polygon: Optional[List[List[float]]] = None
     loiter_threshold_seconds: int = Field(default=settings.LOITER_THRESHOLD_SECONDS, ge=1, le=86400)
     risk_bonus: Optional[int] = Field(default=None, ge=0, le=100)
     night_rules: Dict[str, Any] = Field(default_factory=default_night_rules)
@@ -60,7 +84,22 @@ class ZoneBase(InputSchema):
     color_hex: HexColor = "#00ff00"
     is_active: bool = True
 
-    _polygon = field_validator("polygon")(validate_polygon)
+    @field_validator("polygon")
+    @classmethod
+    def _polygon(cls, value):
+        return validate_polygon(value) if value is not None else value
+
+    @field_validator("geo_polygon")
+    @classmethod
+    def _geo_polygon(cls, value):
+        return validate_geo_polygon(value) if value is not None else value
+
+    @model_validator(mode="after")
+    def _one_polygon_source(self) -> "ZoneBase":
+        if self.polygon is None and self.geo_polygon is None:
+            raise ValueError("Send polygon (camera pixels) or geo_polygon (drawn on the map)")
+        return self
+
     _night_rules = field_validator("night_rules")(validate_night_rules)
 
 
@@ -78,6 +117,7 @@ class ZoneUpdate(InputSchema):
     zone_name: Optional[str] = Field(default=None, min_length=1, max_length=100)
     zone_type: Optional[ZoneType] = None
     polygon: Optional[List[List[float]]] = None
+    geo_polygon: Optional[List[List[float]]] = None
     loiter_threshold_seconds: Optional[int] = Field(default=None, ge=1, le=86400)
     risk_bonus: Optional[int] = Field(default=None, ge=0, le=100)
     night_rules: Optional[Dict[str, Any]] = None
@@ -89,6 +129,11 @@ class ZoneUpdate(InputSchema):
     @classmethod
     def _polygon(cls, value):
         return validate_polygon(value) if value is not None else value
+
+    @field_validator("geo_polygon")
+    @classmethod
+    def _geo_polygon(cls, value):
+        return validate_geo_polygon(value) if value is not None else value
 
     @field_validator("night_rules")
     @classmethod
@@ -102,6 +147,8 @@ class ZoneResponse(ORMSchema):
     zone_name: str
     zone_type: ZoneType
     polygon: List[List[float]] = Field(default_factory=list)
+    #: Present when the zone was drawn on the map; the pixel polygon above is projected from it.
+    geo_polygon: Optional[List[List[float]]] = None
     loiter_threshold_seconds: int
     risk_bonus: int
     night_rules: Dict[str, Any] = Field(default_factory=dict)

@@ -10,13 +10,14 @@ from backend.core.auth import ensure_camera_access, require_camera_access
 from backend.core.config import settings
 from backend.core.dependencies import get_current_active_user, get_supervisor_or_above
 from backend.core.enums import ZoneType
-from backend.database.crud import zone_crud
+from backend.database.crud import camera_crud, zone_crud
 from backend.database.database import get_db
 from backend.models import Camera, Zone
 from backend.models.user import User
 from backend.schemas.api import MessageResponse
 from backend.schemas.zone import ZoneCreate, ZoneListResponse, ZoneResponse, ZoneUpdate
 from backend.services.audit import audit_action
+from backend.services.geo_calibration import CalibrationError, project_polygon
 from backend.services.notification import notification_service
 
 router = APIRouter(tags=["Zones"])
@@ -44,6 +45,23 @@ def validate_integer_polygon(polygon: List[List[float]]) -> List[List[int]]:
                                 f"polygon point {index} must be non-negative")
         cleaned.append([int(x), int(y)])
     return cleaned
+
+
+async def project_from_map(db, camera_id: str, geo_polygon: List[List[float]]) -> List[List[int]]:
+    """Map polygon ([[lat, lng], ...]) → camera pixels, through that camera's ground-plane calibration."""
+    camera = await camera_crud.get(db, camera_id)
+    if camera is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Camera {camera_id} not found")
+    if not camera.calibration:
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            f"{camera_id} is not calibrated against the map yet. Calibrate it (4 landmarks) before drawing "
+            "zones on the map, or draw the zone on the camera image instead.",
+        )
+    try:
+        return project_polygon(camera.calibration, geo_polygon)
+    except CalibrationError as exc:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
 
 
 @router.get("", response_model=ZoneListResponse, summary="List zones")
@@ -110,7 +128,10 @@ async def create_zone(
 ) -> ZoneResponse:
     await ensure_camera_access(request, db, current_user, payload.camera_id)
     data = payload.model_dump()
-    data["polygon"] = validate_integer_polygon(payload.polygon)
+    if payload.geo_polygon is not None:
+        data["polygon"] = await project_from_map(db, payload.camera_id, payload.geo_polygon)
+    else:
+        data["polygon"] = validate_integer_polygon(payload.polygon)
     data["risk_bonus"] = risk_bonus_for(payload.zone_type)
 
     zone = await zone_crud.create(db, data)
@@ -141,12 +162,17 @@ async def update_zone(
     before = zone.to_dict()
     updates = payload.model_dump(exclude_unset=True)
     updates.pop("risk_bonus", None)  # policy value, recomputed from the zone type below
-    if payload.polygon is not None:
+    if payload.geo_polygon is not None:
+        updates["polygon"] = await project_from_map(db, zone.camera_id, payload.geo_polygon)
+    elif payload.polygon is not None:
+        # A polygon edited on the camera image detaches the zone from the map drawing it came from.
         updates["polygon"] = validate_integer_polygon(payload.polygon)
+        updates["geo_polygon"] = None
     if payload.zone_type is not None:
         updates["risk_bonus"] = risk_bonus_for(payload.zone_type)
 
-    zone = await zone_crud.update(db, zone, updates)
+    # exclude_none=False so a polygon edited on the image can clear geo_polygon (detach from the map).
+    zone = await zone_crud.update(db, zone, updates, exclude_none=False)
     await audit_action(db, "UPDATE_ZONE", request=request, user=current_user, table_name="zones",
                        record_id=zone_id, old_value=before, new_value=zone.to_dict())
     await db.commit()

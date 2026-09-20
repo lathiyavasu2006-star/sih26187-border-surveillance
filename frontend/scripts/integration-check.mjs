@@ -119,6 +119,22 @@ if (video) {
   const noJob = await api(`/evidence/${video.evidence_id}/analysis-status`, { token })
   record('analysis status endpoint reachable', noJob.status === 200 || noJob.status === 404, `status ${noJob.status}`)
 }
+// Map-drawn zones: the camera calibration endpoint answers, and every map zone carries a pixel polygon.
+if (camera) {
+  const calibration = await api(`/cameras/${camera.camera_id}/calibration`, { token })
+  record(
+    'GET /cameras/{id}/calibration (map zone projection)',
+    calibration.status === 200 || calibration.status === 404,
+    calibration.status === 200 ? `calibrated, fit ±${calibration.json.error_px} px` : 'not calibrated yet',
+  )
+}
+const mapZones = ((await api('/zones?limit=100', { token })).json?.items ?? []).filter((zone) => zone.geo_polygon)
+record(
+  'map-drawn zones carry both polygons',
+  mapZones.every((zone) => Array.isArray(zone.polygon) && zone.polygon.length >= 3),
+  `${mapZones.length} zone(s) drawn on the map`,
+)
+
 // Console host position (Windows location service) — the fallback when the browser has no geolocation.
 const hostLocation = await api('/cameras/host-location', { token })
 record(

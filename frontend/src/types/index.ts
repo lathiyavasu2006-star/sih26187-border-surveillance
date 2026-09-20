@@ -101,6 +101,29 @@ export interface Camera {
   status: CameraStatus
   registered_at: string
   last_seen: string
+  /** A ground-plane calibration exists, so zones drawn on the map project into this camera's frame. */
+  calibrated: boolean
+  calibration_error_px: number | null
+}
+
+/** One landmark marked in both views: [x, y] in camera pixels and [lat, lng] on the map. */
+export interface CalibrationPoint {
+  image: [number, number]
+  geo: [number, number]
+}
+
+export interface CameraCalibration {
+  camera_id: string
+  points: CalibrationPoint[]
+  image_size: [number, number]
+  error_px: number
+  calibrated_at: string
+  zones_projected: number
+}
+
+export interface CalibrationRequest {
+  points: CalibrationPoint[]
+  image_size: [number, number]
 }
 
 export interface CameraWithAlertCount extends Camera {
@@ -348,6 +371,8 @@ export interface Zone {
   zone_name: string
   zone_type: ZoneType
   polygon: [number, number][]
+  /** Set when the zone was drawn on the map; the pixel polygon above is projected from it. */
+  geo_polygon: [number, number][] | null
   loiter_threshold_seconds: number
   risk_bonus: number
   night_rules: NightRules
@@ -361,7 +386,9 @@ export interface ZoneCreateRequest {
   camera_id: string
   zone_name: string
   zone_type: ZoneType
-  polygon: [number, number][]
+  /** Send polygon (camera pixels) or geo_polygon (drawn on the map); the server projects the latter. */
+  polygon?: [number, number][]
+  geo_polygon?: [number, number][]
   loiter_threshold_seconds: number
   night_rules: NightRules
   allowed_persons: string[]

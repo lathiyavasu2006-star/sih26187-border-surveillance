@@ -65,6 +65,9 @@ class CameraResponse(ORMSchema):
     status: CameraStatus
     registered_at: TzDatetime
     last_seen: TzDatetime
+    #: Ground-plane calibration present, so zones drawn on the map project into this camera's pixels.
+    calibrated: bool = False
+    calibration_error_px: Optional[float] = None
 
     @field_validator("rtsp_url")
     @classmethod

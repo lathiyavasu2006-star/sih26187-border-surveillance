@@ -33,6 +33,8 @@ function makeCamera(overrides: Partial<CameraWithAlertCount> = {}): CameraWithAl
     registered_at: '2026-09-17T00:00:00Z',
     last_seen: '2026-09-18T00:00:00Z',
     active_alert_count: 0,
+    calibrated: false,
+    calibration_error_px: null,
     ...overrides,
   }
 }
@@ -188,6 +190,7 @@ describe('FocusedCameraPanel', () => {
       zone_name: 'Gate line',
       zone_type: 'restricted',
       polygon: [[0, 0], [1, 0], [1, 1]],
+      geo_polygon: null,
       loiter_threshold_seconds: 30,
       risk_bonus: 50,
       night_rules: { multiplier: 1.5, start: 20, end: 6 },

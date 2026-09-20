@@ -698,6 +698,98 @@
           "response": []
         },
         {
+          "name": "Calibrate camera against the map",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cameras/{{camera_id}}/calibration",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cameras",
+                "{{camera_id}}",
+                "calibration"
+              ]
+            },
+            "description": "Supervisor or above. Four or more landmarks marked in both the camera image and the map fit a ground-plane homography, so zones drawn on the map project into this camera's pixels. Re-running it reprojects the camera's existing map zones. Audited as CALIBRATE_CAMERA.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"points\": [\n    {\n      \"image\": [\n        608.0,\n        850.0\n      ],\n      \"geo\": [\n        26.9814598,\n        84.8511139\n      ]\n    },\n    {\n      \"image\": [\n        1312.0,\n        850.0\n      ],\n      \"geo\": [\n        26.9814598,\n        84.8513561\n      ]\n    },\n    {\n      \"image\": [\n        671.0,\n        906.0\n      ],\n      \"geo\": [\n        26.9817743,\n        84.8510331\n      ]\n    },\n    {\n      \"image\": [\n        1249.0,\n        906.0\n      ],\n      \"geo\": [\n        26.9817743,\n        84.8514369\n      ]\n    }\n  ],\n  \"image_size\": [\n    1920,\n    1080\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Get camera calibration",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cameras/{{camera_id}}/calibration",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cameras",
+                "{{camera_id}}",
+                "calibration"
+              ]
+            },
+            "description": "The stored landmarks, frame size and fit error. 404 when the camera is not calibrated."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete camera calibration",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/cameras/{{camera_id}}/calibration",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "cameras",
+                "{{camera_id}}",
+                "calibration"
+              ]
+            },
+            "description": "Supervisor or above. Existing zones keep their pixel polygon; new map zones need a new calibration."
+          },
+          "response": []
+        },
+        {
           "name": "Test camera stream",
           "request": {
             "method": "GET",
@@ -1608,6 +1700,44 @@
       "name": "Zones",
       "description": "Detection zones. risk_bonus is policy, derived from zone_type.",
       "item": [
+        {
+          "name": "Create zone from the map",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{token}}",
+                "type": "text"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/zones",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "zones"
+              ]
+            },
+            "description": "Supervisor or above. geo_polygon ([[lat, lng], ...]) is drawn on the threat map and projected into the camera's pixel polygon through its calibration. 409 when the camera is not calibrated.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"camera_id\": \"{{camera_id}}\",\n  \"zone_name\": \"Map fence line\",\n  \"zone_type\": \"restricted\",\n  \"geo_polygon\": [\n    [\n      26.9815,\n      84.8511\n    ],\n    [\n      26.9815,\n      84.8514\n    ],\n    [\n      26.9818,\n      84.8514\n    ],\n    [\n      26.9818,\n      84.8511\n    ]\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "response": []
+        },
         {
           "name": "Create zone",
           "request": {

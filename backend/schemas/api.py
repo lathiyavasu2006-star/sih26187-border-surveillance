@@ -116,6 +116,39 @@ class CameraEditRequest(InputSchema):
         return self
 
 
+class CalibrationPoint(InputSchema):
+    """One landmark seen in both views: where it is in the camera image and where it is on the map."""
+
+    image: List[float] = Field(min_length=2, max_length=2, description="[x, y] in camera pixels")
+    geo: List[float] = Field(min_length=2, max_length=2, description="[latitude, longitude]")
+
+
+class CameraCalibrationRequest(InputSchema):
+    """Ground-plane calibration: 4+ landmarks that lie on the ground, spread across the camera's view."""
+
+    points: List[CalibrationPoint] = Field(min_length=4, max_length=24)
+    image_size: List[int] = Field(min_length=2, max_length=2, description="[width, height] of the camera frame")
+
+    @field_validator("image_size")
+    @classmethod
+    def _frame_size(cls, value: List[int]) -> List[int]:
+        width, height = int(value[0]), int(value[1])
+        if not (2 <= width <= 16384 and 2 <= height <= 16384):
+            raise ValueError("image_size must be the camera frame size in pixels")
+        return [width, height]
+
+
+class CameraCalibrationResponse(BaseModel):
+    camera_id: str
+    points: List[CalibrationPoint]
+    image_size: List[int]
+    #: Average distance between each landmark and where the fitted plane puts it.
+    error_px: float
+    calibrated_at: datetime
+    #: Map-drawn zones of this camera whose pixel polygon was recomputed by this calibration.
+    zones_projected: int = 0
+
+
 class HostLocationResponse(BaseModel):
     """Position of the console host from the OS location service (fallback when the browser has none)."""
 

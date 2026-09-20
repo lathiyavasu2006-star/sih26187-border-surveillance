@@ -40,7 +40,7 @@ async def test_all_tables_and_indexes_exist(db):
     rows = await db.execute(text("SELECT tablename FROM pg_tables WHERE schemaname='public'"))
     assert EXPECTED_TABLES <= {r[0] for r in rows}
     idx = (await db.execute(text("SELECT count(*) FROM pg_indexes WHERE schemaname='public' AND indexname LIKE 'idx_%'"))).scalar()
-    assert idx == 48
+    assert idx == 49  # 48 base indexes + the partial idx_zones_geo for map-drawn zones
 
 
 async def test_camera_server_defaults(db, camera):

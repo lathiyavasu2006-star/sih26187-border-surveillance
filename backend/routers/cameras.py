@@ -1,4 +1,5 @@
 """Camera registration, listing, status control and stream testing."""
+import logging
 import re
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -14,9 +15,9 @@ from backend.core.auth import ensure_camera_access, require_camera_access
 from backend.core.dependencies import get_admin_user, get_current_active_user, get_supervisor_or_above
 from backend.core.enums import CameraStatus, CameraType, UserRole, ZoneRegion
 from backend.core.runtime import runtime_state
-from backend.database.crud import camera_crud
+from backend.database.crud import camera_crud, zone_crud
 from backend.database.database import get_db
-from backend.models import Alert, Camera, Event, Evidence
+from backend.models import Alert, Camera, Event, Evidence, Zone
 from backend.models.user import User
 from backend.schemas.alert import AlertResponse
 from backend.schemas.api import (
@@ -28,16 +29,22 @@ from backend.schemas.api import (
     CameraRegisterResponse,
     CameraStatusResponse,
     CameraStatusUpdate,
+    CameraCalibrationRequest,
+    CameraCalibrationResponse,
     CameraWithAlertCount,
     HostLocationResponse,
+    MessageResponse,
     StreamTestResponse,
 )
 from backend.schemas.camera import CameraResponse
 from backend.services.audit import audit_action
 from backend.services.camera_monitor import mark_camera_offline, notify_offline
+from backend.services.geo_calibration import CalibrationError, compute as compute_calibration, project_polygon
 from backend.services.host_location import HostLocationUnavailable, read_host_location
 from backend.services.notification import notification_service
 from backend.services.stream_probe import is_device_index, probe_stream_async
+
+logger = logging.getLogger("sih26187.cameras")
 
 router = APIRouter(tags=["Cameras"])
 
@@ -304,6 +311,118 @@ async def edit_camera(
     await db.commit()
     await db.refresh(camera)
     return CameraResponse.model_validate(camera)
+
+
+async def _reproject_map_zones(db: AsyncSession, camera: Camera) -> int:
+    """Recompute the pixel polygon of every map-drawn zone on this camera after a (re)calibration.
+
+    A zone the camera can no longer see is deactivated rather than left enforcing a stale polygon."""
+    zones = (await db.execute(
+        select(Zone).where(Zone.camera_id == camera.camera_id, Zone.geo_polygon.isnot(None))
+    )).scalars().all()
+    projected = 0
+    for zone in zones:
+        try:
+            pixels = project_polygon(camera.calibration, zone.geo_polygon)
+        except CalibrationError as exc:
+            await zone_crud.update(db, zone, {"is_active": False})
+            logger.warning("[%s] zone %s deactivated: %s", camera.camera_id, zone.zone_id, exc)
+            continue
+        await zone_crud.update(db, zone, {"polygon": pixels, "is_active": True})
+        projected += 1
+    return projected
+
+
+@router.put(
+    "/{camera_id}/calibration",
+    response_model=CameraCalibrationResponse,
+    summary="Calibrate the camera against the map (ground-plane homography)",
+)
+async def calibrate_camera(
+    request: Request,
+    camera_id: str,
+    payload: CameraCalibrationRequest,
+    current_user: User = Depends(get_supervisor_or_above),
+    db: AsyncSession = Depends(get_db),
+) -> CameraCalibrationResponse:
+    """Four or more landmarks marked in both the camera image and the map let the console convert any zone
+    drawn on the map into the pixel polygon the ML fence enforces."""
+    camera = await ensure_camera_access(request, db, current_user, camera_id.upper())
+    try:
+        calibration = compute_calibration([point.model_dump() for point in payload.points], payload.image_size)
+    except CalibrationError as exc:
+        await audit_action(db, "CALIBRATE_CAMERA", request=request, user=current_user, table_name="cameras",
+                           record_id=camera.camera_id, status="failed", new_value={"reason": str(exc)}, commit=True)
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, str(exc)) from exc
+
+    calibration["calibrated_by"] = current_user.username
+    await camera_crud.update(db, camera, {"calibration": calibration})
+    projected = await _reproject_map_zones(db, camera)
+    await audit_action(
+        db, "CALIBRATE_CAMERA", request=request, user=current_user, table_name="cameras",
+        record_id=camera.camera_id,
+        new_value={"points": len(payload.points), "error_px": calibration["error_px"],
+                   "image_size": calibration["image_size"], "zones_projected": projected},
+    )
+    await db.commit()
+    return CameraCalibrationResponse(
+        camera_id=camera.camera_id,
+        points=payload.points,
+        image_size=calibration["image_size"],
+        error_px=calibration["error_px"],
+        calibrated_at=calibration["calibrated_at"],
+        zones_projected=projected,
+    )
+
+
+@router.get(
+    "/{camera_id}/calibration",
+    response_model=CameraCalibrationResponse,
+    summary="Current ground-plane calibration of the camera",
+)
+async def get_calibration(
+    request: Request,
+    camera: Camera = Depends(require_camera_access),
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+) -> CameraCalibrationResponse:
+    calibration = camera.calibration
+    if not calibration:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"{camera.camera_id} is not calibrated against the map yet")
+    await audit_action(db, "VIEW_CALIBRATION", request=request, user=current_user, table_name="cameras",
+                       record_id=camera.camera_id)
+    await db.commit()
+    return CameraCalibrationResponse(
+        camera_id=camera.camera_id,
+        points=calibration.get("points", []),
+        image_size=calibration.get("image_size", [0, 0]),
+        error_px=calibration.get("error_px", 0.0),
+        calibrated_at=calibration.get("calibrated_at"),
+        zones_projected=0,
+    )
+
+
+@router.delete(
+    "/{camera_id}/calibration",
+    response_model=MessageResponse,
+    summary="Remove the camera's map calibration",
+)
+async def delete_calibration(
+    request: Request,
+    camera_id: str,
+    current_user: User = Depends(get_supervisor_or_above),
+    db: AsyncSession = Depends(get_db),
+) -> MessageResponse:
+    """Existing zones keep the pixel polygon they were given; new map zones cannot be added until the
+    camera is calibrated again."""
+    camera = await ensure_camera_access(request, db, current_user, camera_id.upper())
+    if not camera.calibration:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"{camera.camera_id} is not calibrated")
+    await camera_crud.update(db, camera, {"calibration": None}, exclude_none=False)
+    await audit_action(db, "DELETE_CALIBRATION", request=request, user=current_user, table_name="cameras",
+                       record_id=camera.camera_id)
+    await db.commit()
+    return MessageResponse(message=f"{camera.camera_id} calibration removed")
 
 
 @router.delete("/{camera_id}", response_model=CameraDeleteResponse, summary="Delete a camera (admin only)")

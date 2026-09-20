@@ -41,6 +41,8 @@ function makeCamera(overrides: Partial<CameraWithAlertCount> = {}): CameraWithAl
     registered_at: '2026-09-17T00:00:00Z',
     last_seen: '2026-09-18T00:00:00Z',
     active_alert_count: 3,
+    calibrated: false,
+    calibration_error_px: null,
     ...overrides,
   }
 }

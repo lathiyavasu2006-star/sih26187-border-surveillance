@@ -229,6 +229,23 @@ def build_collection() -> Dict[str, Any]:
                 "Supervisor or above. Edits name, location, GPS, sector, type or region. Only the fields sent change; "
                 "gps_lat and gps_lng must be sent together (null clears both). Audited as EDIT_CAMERA.",
                 body={"gps_lat": 32.7266, "gps_lng": 74.857, "location_name": "J&K Border - Sector 7"}),
+        request("Calibrate camera against the map", "PUT", "/cameras/{{camera_id}}/calibration",
+                "Supervisor or above. Four or more landmarks marked in both the camera image and the map fit a "
+                "ground-plane homography, so zones drawn on the map project into this camera's pixels. "
+                "Re-running it reprojects the camera's existing map zones. Audited as CALIBRATE_CAMERA.",
+                body={
+                    "points": [
+                        {"image": [608.0, 850.0], "geo": [26.9814598, 84.8511139]},
+                        {"image": [1312.0, 850.0], "geo": [26.9814598, 84.8513561]},
+                        {"image": [671.0, 906.0], "geo": [26.9817743, 84.8510331]},
+                        {"image": [1249.0, 906.0], "geo": [26.9817743, 84.8514369]},
+                    ],
+                    "image_size": [1920, 1080],
+                }),
+        request("Get camera calibration", "GET", "/cameras/{{camera_id}}/calibration",
+                "The stored landmarks, frame size and fit error. 404 when the camera is not calibrated."),
+        request("Delete camera calibration", "DELETE", "/cameras/{{camera_id}}/calibration",
+                "Supervisor or above. Existing zones keep their pixel polygon; new map zones need a new calibration."),
         request("Test camera stream", "GET", "/cameras/{{camera_id}}/test",
                 "Supervisor or above. Opens the stream, measures FPS and returns a base64 JPEG preview."),
         request("Delete camera", "DELETE", "/cameras/{{camera_id}}",
@@ -344,6 +361,15 @@ def build_collection() -> Dict[str, Any]:
     ])
 
     zones = folder("Zones", "Detection zones. risk_bonus is policy, derived from zone_type.", [
+        request("Create zone from the map", "POST", "/zones",
+                "Supervisor or above. geo_polygon ([[lat, lng], ...]) is drawn on the threat map and projected "
+                "into the camera's pixel polygon through its calibration. 409 when the camera is not calibrated.",
+                body={
+                    "camera_id": "{{camera_id}}",
+                    "zone_name": "Map fence line",
+                    "zone_type": "restricted",
+                    "geo_polygon": [[26.9815, 84.8511], [26.9815, 84.8514], [26.9818, 84.8514], [26.9818, 84.8511]],
+                }),
         request("Create zone", "POST", "/zones",
                 "Supervisor or above. Polygon needs 3+ integer pixel points. risk_bonus is set from zone_type: "
                 "public 0, buffer 10, sensitive 30, restricted 50, no_mans_land 100.",

@@ -9,6 +9,8 @@ import type {
   AuditLogEntry,
   AuditLogFilters,
   Camera,
+  CalibrationRequest,
+  CameraCalibration,
   CameraDeleteResponse,
   CameraDetail,
   CameraEditRequest,
@@ -93,6 +95,16 @@ export const camerasApi = {
   /** Position of the console host (Windows location service); 503 with the reason when location is off. */
   async hostLocation(refresh = false): Promise<HostLocation> {
     return (await api.get<HostLocation>('/cameras/host-location', { params: refresh ? { refresh: true } : {}, timeout: 45_000 })).data
+  },
+  /** Fit the camera's ground plane from landmarks marked on the image and the map (supervisor+). */
+  async calibrate(cameraId: string, payload: CalibrationRequest): Promise<CameraCalibration> {
+    return (await api.put<CameraCalibration>(`/cameras/${encodeURIComponent(cameraId)}/calibration`, payload)).data
+  },
+  async calibration(cameraId: string): Promise<CameraCalibration> {
+    return (await api.get<CameraCalibration>(`/cameras/${encodeURIComponent(cameraId)}/calibration`)).data
+  },
+  async removeCalibration(cameraId: string): Promise<MessageResponse> {
+    return (await api.delete<MessageResponse>(`/cameras/${encodeURIComponent(cameraId)}/calibration`)).data
   },
   async setStatus(cameraId: string, status: CameraStatus): Promise<CameraStatusResponse> {
     return (await api.patch<CameraStatusResponse>(`/cameras/${encodeURIComponent(cameraId)}/status`, { status })).data
