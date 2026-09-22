@@ -29,6 +29,30 @@ RUNS = PROJECT_ROOT / "datasets" / "weapons" / "runs"
 TARGET_WEIGHTS = PROJECT_ROOT / "models" / "weapon_yolov8s.pt"
 
 
+class StayAwake:
+    """Keeps Windows from sleeping while training runs, without touching the power plan.
+
+    SetThreadExecutionState is the same request a video player makes: it lasts only as long as this process,
+    so an idle-sleep timer of a few minutes no longer kills a multi-hour run."""
+
+    ES_CONTINUOUS = 0x80000000
+    ES_SYSTEM_REQUIRED = 0x00000001
+
+    def __enter__(self):
+        if sys.platform == "win32":
+            import ctypes
+
+            ctypes.windll.kernel32.SetThreadExecutionState(self.ES_CONTINUOUS | self.ES_SYSTEM_REQUIRED)
+        return self
+
+    def __exit__(self, *_exc):
+        if sys.platform == "win32":
+            import ctypes
+
+            ctypes.windll.kernel32.SetThreadExecutionState(self.ES_CONTINUOUS)
+        return False
+
+
 def sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -58,10 +82,12 @@ def report(metrics, names, title: str) -> dict:
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Train the weapon detector")
-    parser.add_argument("--model", default="yolov8s.pt", help="starting weights (yolov8n/s/m)")
+    parser.add_argument("--model", default=str(PROJECT_ROOT / "models" / "yolov8s.pt"), help="starting weights (yolov8n/s/m)")
     parser.add_argument("--epochs", type=int, default=80)
     parser.add_argument("--imgsz", type=int, default=640)
-    parser.add_argument("--batch", type=int, default=8, help="8 fits 4 GB with yolov8s at 640")
+    parser.add_argument("--batch", type=int, default=8, help="8 fits 4 GB with yolov8s at 640; -1 = auto")
+    parser.add_argument("--workers", type=int, default=2, help="data loader processes (Windows: keep low)")
+    parser.add_argument("--fraction", type=float, default=1.0, help="share of the training set to use (smoke test)")
     parser.add_argument("--patience", type=int, default=20, help="stop when validation stops improving")
     parser.add_argument("--device", default="0")
     parser.add_argument("--name", default=None)
@@ -80,10 +106,17 @@ def main() -> int:
         report(metrics, model.names, f"test split — {args.evaluate_only}")
         return 0
 
-    run_name = args.name or f"weapons_{args.model.split('.')[0]}_{datetime.now().strftime('%m%d_%H%M')}"
+    run_name = args.name or f"weapons_{Path(args.model).stem}_{datetime.now().strftime('%m%d_%H%M')}"
     print(f"training {args.model} on {DATA_YAML} for up to {args.epochs} epochs (batch {args.batch}, {args.imgsz} px)")
     started = time.time()
     model = YOLO(args.model)
+    with StayAwake():
+        _train(model, args, run_name)
+    minutes = (time.time() - started) / 60
+    return _finish(args, run_name, minutes)
+
+
+def _train(model, args, run_name: str) -> None:
     model.train(
         data=str(DATA_YAML),
         epochs=args.epochs,
@@ -107,8 +140,15 @@ def main() -> int:
         scale=0.5,
         mosaic=1.0,
         close_mosaic=10,
+        workers=args.workers,
+        fraction=args.fraction,
+        cache=False,
     )
-    minutes = (time.time() - started) / 60
+
+
+def _finish(args, run_name: str, minutes: float) -> int:
+    from ultralytics import YOLO
+
     best = RUNS / run_name / "weights" / "best.pt"
     if not best.exists():
         print("Training finished without producing weights")
@@ -120,11 +160,16 @@ def main() -> int:
     scores = {"val": report(validation, trained.names, "validation split"),
               "test": report(test, trained.names, "test split (never seen during training)")}
 
+    if args.fraction < 1.0:
+        # A smoke test trains on a sliver of the data: its weights must never reach the live pipeline.
+        print(f"\nsmoke test ({args.fraction:.0%} of the data, {minutes:.1f} min): weights left in {best.parent}, not installed")
+        return 0
+
     TARGET_WEIGHTS.parent.mkdir(parents=True, exist_ok=True)
     shutil.copy2(best, TARGET_WEIGHTS)
     sidecar = {
         "weights_sha256": sha256(TARGET_WEIGHTS),
-        "base_model": args.model,
+        "base_model": Path(args.model).name,
         "classes": list(trained.names.values()),
         "dataset": "DaSCI OD-WeaponDetection (CC BY 4.0), prepared by ml/training/prepare_weapon_dataset.py",
         "epochs_requested": args.epochs,
