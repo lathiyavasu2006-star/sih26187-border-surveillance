@@ -56,7 +56,21 @@ function emptyCamera(cameraId: string): LiveCameraState {
     latencyMs: null,
     frameCount: 0,
     measuredFps: 0,
+    armedTracks: {},
   }
+}
+
+/** Adds every person now holding a weapon to the per-type set of armed tracks (a track counts once). */
+export function recordArmedTracks(previous: Record<string, number[]>, detections: readonly WSDetection[]): Record<string, number[]> {
+  let next = previous
+  for (const detection of detections) {
+    const type = detection.weapon_class
+    if (!type) continue
+    const seen = next[type] ?? []
+    if (seen.includes(detection.track_id)) continue
+    next = { ...next, [type]: [...seen, detection.track_id] }
+  }
+  return next
 }
 
 export const useLiveStore = create<LiveState>()((set, get) => ({
@@ -100,6 +114,7 @@ export const useLiveStore = create<LiveState>()((set, get) => ({
       latencyMs: hasFrame && Number.isFinite(sent) ? Math.max(0, now - sent) : previous.latencyMs,
       frameCount: previous.frameCount + (hasFrame ? 1 : 0),
       measuredFps,
+      armedTracks: detectionsUpdated ? recordArmedTracks(previous.armedTracks ?? {}, message.detections) : previous.armedTracks ?? {},
     }
 
     const known = new Set(get().liveAlerts.map((alert) => alert.alert_id))

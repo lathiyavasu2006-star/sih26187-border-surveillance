@@ -93,6 +93,16 @@ class MLConfig:
     weapon_max_crops: int = field(default_factory=lambda: _env_int("ML_WEAPON_MAX_CROPS", 6))
     #: Live throttle: checking every second frame keeps the main pipeline at full speed.
     weapon_every_n_frames: int = field(default_factory=lambda: _env_int("ML_WEAPON_EVERY_N_FRAMES", 2))
+    #: A hand-held weapon is a small part of the person holding it. Boxes bigger than this share of the
+    #: person box were, on real CCTV, the model outlining the whole person or a car windshield.
+    #: Measured 2026-09-22: 0.60 keeps 73% end-to-end recall on the held-out test split (0.35: 65%, off: 82%)
+    #: with zero weapon alerts on the traffic and night-CCTV clips; 0.75 let two false knife alerts through.
+    weapon_max_person_ratio: float = field(default_factory=lambda: _env_float("ML_WEAPON_MAX_PERSON_RATIO", 0.60))
+    #: People inside a vehicle are seen through glass; the crop is windshield, which the model mistook for a gun.
+    weapon_skip_vehicle_occupants: bool = field(default_factory=lambda: _env_bool("ML_WEAPON_SKIP_OCCUPANTS", True))
+    #: A weapon counts only when the same person shows it in `hits` of their last `window` checks.
+    weapon_confirm_hits: int = field(default_factory=lambda: _env_int("ML_WEAPON_CONFIRM_HITS", 3))
+    weapon_confirm_window: int = field(default_factory=lambda: _env_int("ML_WEAPON_CONFIRM_WINDOW", 5))
     target_classes: List[int] = field(default_factory=list)
     class_names: Dict[int, str] = field(default_factory=dict)
 

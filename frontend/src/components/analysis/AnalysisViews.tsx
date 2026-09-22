@@ -1,5 +1,6 @@
 import { Bell, Car, CheckCircle2, Loader2, Radio, ShieldAlert, Users, XCircle } from 'lucide-react'
 import { ProgressBar } from '@/components/ui/primitives'
+import { WeaponCountBox } from '@/components/analysis/WeaponCountBox'
 import { cn, formatDuration } from '@/lib/utils'
 import type { AnalysisJob } from '@/types'
 
@@ -94,6 +95,7 @@ export function JobSummary({ job }: { job: AnalysisJob }) {
           <dd className="font-mono text-base font-semibold">{summary.duration_seconds !== null ? formatDuration(summary.duration_seconds) : '—'}</dd>
         </div>
       </dl>
+      <WeaponCountBox counts={summary.weapons_found ?? {}} sightings={summary.weapon_sightings ?? {}} className="mt-3" />
       <div className="mt-3">
         <p className="flex items-center gap-1 text-xs font-semibold text-slate-700">
           <ShieldAlert className="size-3.5 text-red-600" /> High risk moments
@@ -145,6 +147,10 @@ export function LiveAnalysisView({ job, frame, live, className }: { job: Analysi
             <span>VEHICLES {job.vehicles}</span>
             <span className="text-slate-500">·</span>
             <span>ANIMALS {job.animals}</span>
+            <span className="text-slate-500">·</span>
+            <span className={job.weapons ? 'font-bold text-red-400' : ''} data-testid="live-weapons">
+              WEAPONS {job.weapons ?? 0}
+            </span>
             <span className="text-slate-500">·</span>
             <span className={job.alerts ? 'text-red-400' : ''}>ALERTS {job.alerts}</span>
             <div className="ml-auto h-1.5 w-32 overflow-hidden rounded-full bg-white/15">

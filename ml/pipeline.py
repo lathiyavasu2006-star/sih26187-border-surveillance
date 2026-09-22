@@ -234,7 +234,8 @@ class Pipeline:
         people = [det for det in tracked if ml_config.is_person(det.get("cls_name", ""))]
         if not people:
             return []
-        return await asyncio.to_thread(weapon_detector.detect, frame, people)
+        vehicles = [det for det in tracked if ml_config.is_vehicle(det.get("cls_name", ""))]
+        return await asyncio.to_thread(weapon_detector.detect, frame, people, vehicles, self.camera_id)
 
     def _update_fps(self, mono: float) -> None:
         self.fps_counter += 1

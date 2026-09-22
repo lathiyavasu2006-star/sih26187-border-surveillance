@@ -364,6 +364,9 @@ class WSDetection(BaseModel):
     risk_score: RiskScore = 0
     risk_level: RiskLevel = RiskLevel.NORMAL
     person_uuid: Optional[str] = Field(default=None, max_length=64)
+    #: Set when this person is holding a weapon (weapon model or COCO knife/bat), for the console's weapon count.
+    weapon_class: Optional[str] = Field(default=None, max_length=20)
+    weapon_confidence: Optional[float] = Field(default=None, ge=0, le=1)
 
 
 class WSAlert(BaseModel):
@@ -431,6 +434,10 @@ class AnalysisSummary(BaseModel):
     persons_found: int
     vehicles_found: int
     animals_found: int
+    #: weapon type -> number of distinct people seen carrying it
+    weapons_found: Dict[str, int] = Field(default_factory=dict)
+    #: weapon type -> processed frames it was seen in
+    weapon_sightings: Dict[str, int] = Field(default_factory=dict)
     alerts_detected: int
     alerts_created: int
     evidence_saved: int
@@ -455,6 +462,8 @@ class AnalysisJobResponse(BaseModel):
     persons: int
     vehicles: int
     animals: int
+    #: people seen carrying a weapon so far
+    weapons: int = 0
     alerts: int
     video_seconds: float
     created_at: datetime

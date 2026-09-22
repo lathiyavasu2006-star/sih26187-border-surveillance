@@ -133,6 +133,7 @@ describe('reporting day and live FPS', () => {
       latencyMs: 10,
       frameCount: 5,
       measuredFps: 9,
+      armedTracks: {},
     })
     expect(livePipelineFps({ a: camera(30.1, 100), b: camera(29.9, 200), stale: camera(3, 9_000) }, now)).toBe(30)
     expect(livePipelineFps({ stale: camera(3, 9_000) }, now)).toBeNull()
@@ -305,6 +306,7 @@ describe('AnalyzeVideoDialog', () => {
     persons: 1,
     vehicles: 0,
     animals: 0,
+    weapons: 0,
     alerts: 0,
     video_seconds: 1,
     created_at: '2026-09-18T00:00:00Z',
@@ -328,6 +330,8 @@ describe('AnalyzeVideoDialog', () => {
       persons_found: 2,
       vehicles_found: 1,
       animals_found: 0,
+      weapons_found: {},
+      weapon_sightings: {},
       alerts_detected: 2,
       alerts_created: 1,
       evidence_saved: 1,
@@ -413,7 +417,7 @@ describe('LiveAnalysisView', () => {
   it('shows the streamed frame with live counters', () => {
     const job = {
       job_id: 'j', evidence_id: null, camera_id: null, standalone: true, status: 'running' as const, percent: 42, frames_read: 10, frames_total: 24,
-      persons: 3, vehicles: 1, animals: 0, alerts: 2, video_seconds: 75, created_at: '', finished_at: null, error: null, summary: null,
+      persons: 3, vehicles: 1, animals: 0, weapons: 0, alerts: 2, video_seconds: 75, created_at: '', finished_at: null, error: null, summary: null,
       alerts_created: [], evidence_created: [],
     }
     render(<LiveAnalysisView job={job} frame="/9j/AAAA" live />)
@@ -440,7 +444,7 @@ describe('VideoAnalysisPage', () => {
   it('analyses a dropped video without any camera and shows the result', async () => {
     const running = {
       job_id: 'job-live', evidence_id: null, camera_id: null, standalone: true, status: 'running' as const, percent: 10, frames_read: 5,
-      frames_total: 50, persons: 1, vehicles: 0, animals: 0, alerts: 0, video_seconds: 1, created_at: '', finished_at: null, error: null,
+      frames_total: 50, persons: 1, vehicles: 0, animals: 0, weapons: 0, alerts: 0, video_seconds: 1, created_at: '', finished_at: null, error: null,
       summary: null, alerts_created: [], evidence_created: [],
     }
     const standalone = vi.spyOn(evidenceApi, 'analyzeStandalone').mockResolvedValue(running)
@@ -450,7 +454,7 @@ describe('VideoAnalysisPage', () => {
       percent: 100,
       frames_read: 50,
       summary: {
-        persons_found: 1, vehicles_found: 0, animals_found: 0, alerts_detected: 0, alerts_created: 0, evidence_saved: 0,
+        persons_found: 1, vehicles_found: 0, animals_found: 0, weapons_found: {}, weapon_sightings: {}, alerts_detected: 0, alerts_created: 0, evidence_saved: 0,
         high_risk_moments: [], duration_seconds: 10, frames_read: 50, frames_processed: 10, fps: 5, resolution: [640, 480], zones_used: 0,
       },
     })

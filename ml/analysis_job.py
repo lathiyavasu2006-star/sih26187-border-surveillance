@@ -114,6 +114,7 @@ async def run(args: argparse.Namespace) -> int:
         "persons": len(result.get("persons_found") or []),
         "vehicles": len(result.get("vehicles_found") or []),
         "animals": len(result.get("animals_found") or []),
+        "weapons": sum(len(carriers) for carriers in (result.get("weapons_found") or {}).values()),
         "alerts": len(result.get("alerts_fired") or []),
         "video_seconds": result.get("duration_seconds", 0),
     })

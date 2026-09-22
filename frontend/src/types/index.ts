@@ -547,6 +547,9 @@ export interface WSDetection {
   risk_score: number
   risk_level: RiskLevel
   person_uuid: string | null
+  /** Set when this person is holding a weapon (firearm / knife). */
+  weapon_class?: string | null
+  weapon_confidence?: number | null
 }
 
 export interface WSStats {
@@ -694,6 +697,8 @@ export interface LiveCameraState {
   latencyMs: number | null
   frameCount: number
   measuredFps: number
+  /** Weapon type -> track ids seen carrying it since this console started watching the camera. */
+  armedTracks: Record<string, number[]>
 }
 
 // ------------------------------------------------------------------ Week 4 follow-up endpoints
@@ -724,6 +729,10 @@ export interface AnalysisSummary {
   persons_found: number
   vehicles_found: number
   animals_found: number
+  /** weapon type -> distinct people seen carrying it */
+  weapons_found: Record<string, number>
+  /** weapon type -> analysed frames it appeared in */
+  weapon_sightings: Record<string, number>
   alerts_detected: number
   alerts_created: number
   evidence_saved: number
@@ -750,6 +759,8 @@ export interface AnalysisJob {
   persons: number
   vehicles: number
   animals: number
+  /** people seen carrying a weapon so far */
+  weapons: number
   alerts: number
   video_seconds: number
   created_at: string

@@ -12,8 +12,9 @@ Without the trained weights the detector stays off and the pipeline behaves exac
 """
 import logging
 import threading
+from collections import deque
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence
+from typing import Deque, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -35,6 +36,8 @@ class WeaponDetector:
         self.inference_ms = 0.0
         self._lock = threading.Lock()
         self._load_failed = False
+        #: (camera, track) -> recent check results (weapon type or None), for temporal confirmation.
+        self._history: Dict[Tuple[str, int], Deque[Optional[str]]] = {}
 
     @property
     def weights_path(self) -> Path:
@@ -87,10 +90,52 @@ class WeaponDetector:
             return None
         return x1, y1, x2, y2
 
-    def detect(self, frame: Optional[np.ndarray], people: Sequence[Dict]) -> List[Dict]:
-        """Weapon detections in frame coordinates, in the shape the analyzer expects from a COCO detection."""
+    @staticmethod
+    def _inside_vehicle(person: Dict, vehicles: Sequence[Dict]) -> bool:
+        """Most of the person box lies within a vehicle box: a driver or passenger seen through glass."""
+        area = max(1.0, float(person["x2"] - person["x1"]) * float(person["y2"] - person["y1"]))
+        for vehicle in vehicles:
+            overlap_w = min(person["x2"], vehicle["x2"]) - max(person["x1"], vehicle["x1"])
+            overlap_h = min(person["y2"], vehicle["y2"]) - max(person["y1"], vehicle["y1"])
+            if overlap_w > 0 and overlap_h > 0 and overlap_w * overlap_h / area >= 0.6:
+                return True
+        return False
+
+    def _confirmed(self, camera_id: str, person: Dict, weapon_type: Optional[str]) -> bool:
+        """Record this check for the person; True once a weapon has shown up often enough to be trusted."""
+        track_id = person.get("track_id")
+        if track_id is None:
+            return weapon_type is not None and ml_config.weapon_confirm_hits <= 1
+        window = max(1, ml_config.weapon_confirm_window)
+        history = self._history.setdefault((camera_id, int(track_id)), deque(maxlen=window))
+        history.append(weapon_type)
+        if len(self._history) > 2000:  # forget the oldest tracks on a long-running camera
+            for key in list(self._history)[:1000]:
+                self._history.pop(key, None)
+        hits = sum(1 for seen in history if seen is not None)
+        return weapon_type is not None and hits >= max(1, ml_config.weapon_confirm_hits)
+
+    def reset(self, camera_id: Optional[str] = None) -> None:
+        """Forget confirmation history (a new video, or a camera restart)."""
+        if camera_id is None:
+            self._history.clear()
+        else:
+            for key in [key for key in self._history if key[0] == camera_id]:
+                self._history.pop(key, None)
+
+    def detect(self, frame: Optional[np.ndarray], people: Sequence[Dict], vehicles: Sequence[Dict] = (),
+               camera_id: str = "default") -> List[Dict]:
+        """Weapon detections in frame coordinates, in the shape the analyzer expects from a COCO detection.
+
+        Three guards stand between the model and an alert, each from a failure seen on real CCTV: a box that
+        is not small next to the person, a person seen through a vehicle's glass, and a weapon that does not
+        persist across several checks of the same person."""
         if frame is None or not len(people) or not self.load():
             return []
+        if ml_config.weapon_skip_vehicle_occupants and vehicles:
+            people = [person for person in people if not self._inside_vehicle(person, vehicles)]
+            if not people:
+                return []
 
         crops, origins = [], []
         # Largest people first: they are nearest the camera, where a weapon is actually resolvable.
@@ -126,11 +171,15 @@ class WeaponDetector:
 
         detections: List[Dict] = []
         for (offset_x, offset_y, person), result in zip(origins, results):
+            person_area = max(1.0, float(person["x2"] - person["x1"]) * float(person["y2"] - person["y1"]))
+            found: List[Dict] = []
             for box in (result.boxes if result.boxes is not None else []):
                 name = self.names.get(int(box.cls.item()), "")
                 if name not in ALERTING_CLASSES:
                     continue
                 x1, y1, x2, y2 = (float(value) for value in box.xyxy[0].tolist())
+                if (x2 - x1) * (y2 - y1) > ml_config.weapon_max_person_ratio * person_area:
+                    continue  # the size of the person (or of a windshield): not something held in a hand
                 detection = {
                     "cls_name": name,
                     "confidence": float(box.conf.item()),
@@ -140,7 +189,10 @@ class WeaponDetector:
                     "source": "weapon_model",
                     "near_track_id": person.get("track_id"),
                 }
-                detections.append(detection)
+                found.append(detection)
+            strongest = max(found, key=lambda d: d["confidence"]) if found else None
+            if self._confirmed(camera_id, person, strongest["cls_name"] if strongest else None):
+                detections.append(strongest)
         if detections:
             logger.info("weapon model: %s", ", ".join(f"{d['cls_name']} {d['confidence']:.2f}" for d in detections))
         return detections

@@ -78,6 +78,11 @@ class VideoUploadProcessor:
             "persons_found": [],
             "vehicles_found": [],
             "animals_found": [],
+            #: weapon type -> identities of the people seen carrying it (a pistol in view for 200 frames is
+            #: one armed person, not 200 weapons)
+            "weapons_found": {},
+            #: weapon type -> number of processed frames it was seen in (how solid each finding is)
+            "weapon_sightings": {},
             "alerts_fired": [],
             "timeline": [],
             "frames_read": 0,
@@ -88,6 +93,7 @@ class VideoUploadProcessor:
 
         frame_count = 0
         last_frame_emit = float("-inf")
+        weapon_detector.reset(camera_id)  # confirmation history belongs to one video
         try:
             while True:
                 frame = await asyncio.to_thread(stream.read)
@@ -109,8 +115,9 @@ class VideoUploadProcessor:
                 # Offline analysis checks every processed frame: there is no live budget to protect.
                 if ml_config.weapon_model_enabled:
                     people = [det for det in tracked if ml_config.is_person(det.get("cls_name", ""))]
+                    vehicles = [det for det in tracked if ml_config.is_vehicle(det.get("cls_name", ""))]
                     if people:
-                        weapons += await asyncio.to_thread(weapon_detector.detect, enhanced, people)
+                        weapons += await asyncio.to_thread(weapon_detector.detect, enhanced, people, vehicles, camera_id)
                 analysis = analyzer.analyze(tracked, weapons, zones, now=now)
                 result["frames_processed"] += 1
 
@@ -121,6 +128,13 @@ class VideoUploadProcessor:
                               else "animals_found" if ml_config.is_animal(cls_name) else None)
                     if bucket and track_id not in result[bucket]:
                         result[bucket].append(track_id)
+                armed = [det for det in analysis.detections if det.get("weapon_detected")]
+                for weapon_type in {det.get("weapon_class") or "weapon" for det in armed}:
+                    result["weapon_sightings"][weapon_type] = result["weapon_sightings"].get(weapon_type, 0) + 1
+                for det in armed:
+                    carriers = result["weapons_found"].setdefault(det.get("weapon_class") or "weapon", [])
+                    if det["track_id"] not in carriers:
+                        carriers.append(det["track_id"])
 
                 if analysis.detections:
                     result["timeline"].append({
@@ -128,6 +142,7 @@ class VideoUploadProcessor:
                         "people": analysis.people_count,
                         "vehicles": analysis.vehicle_count,
                         "animals": analysis.animal_count,
+                        "weapons": len(armed),
                         "max_risk_score": max(d["risk_score"] for d in analysis.detections),
                         "mode": mode,
                     })
@@ -165,6 +180,7 @@ class VideoUploadProcessor:
                         "persons": len(result["persons_found"]),
                         "vehicles": len(result["vehicles_found"]),
                         "animals": len(result["animals_found"]),
+                        "weapons": sum(len(carriers) for carriers in result["weapons_found"].values()),
                         "alerts": len(result["alerts_fired"]),
                     })
         finally:

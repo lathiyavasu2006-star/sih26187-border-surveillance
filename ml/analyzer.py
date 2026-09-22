@@ -63,7 +63,10 @@ def _expanded(det: Dict, ratio: float) -> Tuple[float, float, float, float]:
 def attribute_weapons(people: List[Dict], weapons: List[Dict]) -> None:
     """Mark the person whose (slightly expanded) box contains the weapon centre and is nearest to it."""
     for weapon in weapons:
-        if weapon.get("confidence", 0) < ml_config.conf_threshold:
+        # Each source is judged by its own bar: the trained weapon model is calibrated for weapon_conf,
+        # the COCO knife/bat classes for the general conf_threshold.
+        threshold = ml_config.weapon_conf if weapon.get("source") == "weapon_model" else ml_config.conf_threshold
+        if weapon.get("confidence", 0) < threshold:
             continue
         best, best_distance = None, None
         for person in people:
@@ -188,6 +191,8 @@ def to_ws_detection(det: Dict) -> Dict:
         "direction": det.get("direction", "stationary"),
         "risk_score": max(0, min(100, int(det.get("risk_score", 0)))),
         "risk_level": det.get("risk_level", "normal"),
+        "weapon_class": str(det["weapon_class"])[:20] if det.get("weapon_detected") and det.get("weapon_class") else None,
+        "weapon_confidence": round(float(det["weapon_confidence"]), 3) if det.get("weapon_detected") and det.get("weapon_confidence") is not None else None,
     }
 
 

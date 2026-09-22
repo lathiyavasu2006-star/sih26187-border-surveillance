@@ -2,6 +2,7 @@ import { Camera as CameraIcon, ChevronLeft, ChevronRight, Circle, Crosshair, Eye
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { WeaponCountBox } from '@/components/analysis/WeaponCountBox'
 import { CameraFeed } from '@/components/camera/CameraFeed'
 import { CameraEditButton } from '@/components/camera/CameraEditDialog'
 import { CameraThumbStrip } from '@/components/camera/CameraThumbStrip'
@@ -132,6 +133,14 @@ export function CameraViewPage() {
 
   const detections: WSDetection[] = live && now - live.detectionsReceivedAt <= DETECTION_HOLD_MS * 4 ? live.detections : []
   const trackSelected = selectedTrack && selectedTrack.cameraId === cameraId ? selectedTrack : null
+  // Weapons in view right now (one per armed person) and distinct armed people since this view opened.
+  const weaponsInView: Record<string, number> = {}
+  for (const detection of detections) {
+    if (detection.weapon_class) weaponsInView[detection.weapon_class] = (weaponsInView[detection.weapon_class] ?? 0) + 1
+  }
+  const armedThisSession: Record<string, number> = Object.fromEntries(
+    Object.entries(live?.armedTracks ?? {}).map(([type, tracks]) => [type, tracks.length]),
+  )
 
   // Keep the selected detection's live fields current.
   useEffect(() => {
@@ -277,6 +286,8 @@ export function CameraViewPage() {
         </div>
 
         <div className="flex flex-col gap-4">
+          <WeaponCountBox counts={weaponsInView} title="Weapons in view now" unit="person holding it" showNote={false} />
+          <WeaponCountBox counts={armedThisSession} title="Armed people this session" />
           <Card>
             <CardHeader
               title={`Live detections (${detections.length})`}
