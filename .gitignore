@@ -26,6 +26,9 @@ evidence/
 # ---- Datasets — large and sensitive
 datasets/
 
+# ---- Ultralytics training / validation output
+runs/
+
 # ---- Logs & runtime state
 logs/
 *.log

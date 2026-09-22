@@ -102,7 +102,8 @@ def main() -> int:
 
     if args.evaluate_only:
         model = YOLO(args.evaluate_only)
-        metrics = model.val(data=str(DATA_YAML), split="test", imgsz=args.imgsz, device=args.device, verbose=False)
+        metrics = model.val(data=str(DATA_YAML), split="test", imgsz=args.imgsz, device=args.device, verbose=False,
+                            project=str(RUNS), name="evaluate", exist_ok=True)
         report(metrics, model.names, f"test split — {args.evaluate_only}")
         return 0
 
@@ -155,8 +156,11 @@ def _finish(args, run_name: str, minutes: float) -> int:
         return 3
 
     trained = YOLO(str(best))
-    validation = trained.val(data=str(DATA_YAML), split="val", imgsz=args.imgsz, device=args.device, verbose=False)
-    test = trained.val(data=str(DATA_YAML), split="test", imgsz=args.imgsz, device=args.device, verbose=False)
+    # Plots go next to the run, never into ./runs at the repository root.
+    validation = trained.val(data=str(DATA_YAML), split="val", imgsz=args.imgsz, device=args.device, verbose=False,
+                             project=str(RUNS / run_name), name="final_val", exist_ok=True)
+    test = trained.val(data=str(DATA_YAML), split="test", imgsz=args.imgsz, device=args.device, verbose=False,
+                       project=str(RUNS / run_name), name="final_test", exist_ok=True)
     scores = {"val": report(validation, trained.names, "validation split"),
               "test": report(test, trained.names, "test split (never seen during training)")}
 
