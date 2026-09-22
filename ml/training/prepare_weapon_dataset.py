@@ -14,6 +14,7 @@ Only `firearm` and `knife` ever raise an alert; the other classes exist to teach
 import argparse
 import hashlib
 import random
+import re
 import shutil
 import sys
 import xml.etree.ElementTree as ElementTree
@@ -25,7 +26,7 @@ PROJECT_ROOT = Path(__file__).resolve().parents[2]
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-CLASSES = ["firearm", "knife", "phone", "wallet", "card"]
+CLASSES = ["firearm", "knife", "phone", "wallet", "banknote", "card"]
 ALERTING = ("firearm", "knife")
 
 #: Every label spelling seen in the three sources, mapped onto our classes (Spanish names included).
@@ -34,11 +35,28 @@ LABEL_MAP = {
     "weapon": "firearm", "revolver": "firearm", "rifle": "firearm",
     "knife": "knife", "cuchillo": "knife", "navaja": "knife",
     "smartphone": "phone", "phone": "phone", "movil": "phone", "mobile": "phone", "telefono": "phone",
-    "monedero": "wallet", "wallet": "wallet", "purse": "wallet", "billete": "wallet", "bill": "wallet",
+    "monedero": "wallet", "wallet": "wallet", "purse": "wallet",
+    "billete": "banknote", "bill": "banknote", "banknote": "banknote",
     "tarjeta": "card", "card": "card", "creditcard": "card",
 }
 IMAGE_SUFFIXES = {".jpg", ".jpeg", ".png", ".bmp"}
 SPLITS = (("train", 0.8), ("val", 0.1), ("test", 0.1))
+
+
+#: File-name stems shared by unrelated photos (a scraped "pistol_0421" is not a frame of "pistol_0422").
+#: Any other repeated stem — KravMagaTraining, DefenseKnifeAttack, ABbframe — is frames cut from one video.
+INDEPENDENT_STEMS = {"pistol", "knife", "smartphone", "monedero", "billete", "tarjeta", "img", "dsc", "armas", "image"}
+
+
+def split_key(image: Path) -> str:
+    """What decides the split: frames of one video must all land in the same split, otherwise the test set is
+    the training set one frame later and the scores are fiction."""
+    stem = re.sub(r"[\s_()\-]*\d+[)\s]*$", "", image.stem).lower()
+    # No source-folder prefix: SOHAS re-uses Knife_detection frames under the same names, and a frame must
+    # land in one split whichever copy of it we read.
+    if stem and stem not in INDEPENDENT_STEMS:
+        return f"video:{stem}"
+    return image.name.lower()
 
 
 def split_for(name: str) -> str:
@@ -119,8 +137,12 @@ def collect_yolo(root: Path) -> List[Tuple[Path, List]]:
             break
 
     pairs = []
-    for label_path in sorted(root.rglob("labels/*.txt")):
-        image = find_image(label_path.stem, [label_path.parent.parent / "images"])
+    for label_path in sorted(root.rglob("*.txt")):
+        if "labels" not in label_path.parts:
+            continue
+        # .../labels/train/x.txt -> .../images/train/x.jpg, and .../labels/x.txt -> .../images/x.jpg
+        images_root = Path(str(label_path.parent).replace("labels", "images", 1))
+        image = find_image(label_path.stem, [images_root, images_root.parent])
         if image is None:
             continue
         boxes = []
@@ -139,6 +161,30 @@ def collect_yolo(root: Path) -> List[Tuple[Path, List]]:
         if boxes:
             pairs.append((image, boxes))
     return pairs, names
+
+
+def deduplicate(pairs: List[Tuple[Path, List]]) -> List[Tuple[Path, List]]:
+    """Drop byte-identical images. The sources overlap (3 000+ images appear twice), and a copy in train with
+    its twin in test would make the test score measure memory, not detection."""
+    best: Dict[str, Tuple[Path, List]] = {}
+    for image, boxes in pairs:
+        digest = hashlib.sha1(image.read_bytes()).hexdigest()
+        kept = best.get(digest)
+        # Prefer the richer labelling; on a tie the later source (SOHAS, which also labels phones etc.) wins.
+        if kept is None or len(boxes) >= len(kept[1]):
+            best[digest] = (image, boxes)
+    removed = len(pairs) - len(best)
+    print(f"duplicates removed: {removed} (kept {len(best)} unique images)")
+    return list(best.values())
+
+
+def clamp_box(cx: float, cy: float, w: float, h: float) -> Optional[Tuple[float, float, float, float]]:
+    """Keep a normalised box inside the image; None when nothing usable is left."""
+    x1, y1 = max(0.0, cx - w / 2), max(0.0, cy - h / 2)
+    x2, y2 = min(1.0, cx + w / 2), min(1.0, cy + h / 2)
+    if x2 - x1 <= 1e-4 or y2 - y1 <= 1e-4:
+        return None
+    return (x1 + x2) / 2, (y1 + y2) / 2, x2 - x1, y2 - y1
 
 
 def main() -> int:
@@ -160,7 +206,7 @@ def main() -> int:
     print(f"knife detection:  {len(knives)} annotated images")
     print(f"sohas (YOLO):     {len(sohas_pairs)} annotated images, source classes {sorted(set(sohas_names.values()))}")
 
-    everything = pistols + knives + sohas_pairs
+    everything = deduplicate(pistols + knives + sohas_pairs)
     if not everything:
         print("Nothing to prepare yet — is the download still running?")
         return 1
@@ -177,7 +223,12 @@ def main() -> int:
         if key in seen:
             continue
         seen.add(key)
-        split = split_for(key)
+        # An image whose every box falls outside the frame would be written without a label: skip it first.
+        clamped = [(name, clamp_box(cx, cy, w, h)) for name, cx, cy, w, h in boxes]
+        boxes = [(name, *box) for name, box in clamped if box is not None]
+        if not boxes:
+            continue
+        split = split_for(split_key(image))
         # Source folders repeat file names, so the copy keeps the dataset name as a prefix.
         target_name = f"{image.parent.parent.name.replace(' ', '_')}__{image.stem}"
         target_image = out / "images" / split / f"{target_name}{image.suffix.lower()}"
